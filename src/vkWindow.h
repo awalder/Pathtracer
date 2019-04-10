@@ -29,6 +29,14 @@ public:
     {
         glfwPollEvents();
     }
+    GLFWwindow* getWindow() const
+    {
+        return m_GLFWwindow;
+    }
+    VkExtent2D getWindowSize() const
+    {
+        return m_WindowSize;
+    }
 
 private:
 

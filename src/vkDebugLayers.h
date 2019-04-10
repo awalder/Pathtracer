@@ -35,6 +35,7 @@ private:
     //PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT;
 
     VkDebugUtilsMessengerEXT m_Messenger = VK_NULL_HANDLE;
+
     // Extensions requested by GLFW and possible debug extensions.
     std::vector<const char *> m_RequiredInstanceExtensions;
 
@@ -63,7 +64,8 @@ private:
 
     static const char *debugAnnotObjectToString(const VkObjectType object_type);
 
-#if NDEBUG
+//#if NDEBUG
+#if 0 // Permanently on for now
     const bool m_EnableValidationLayers = false;
 #else
     const bool m_EnableValidationLayers = true;
