@@ -75,6 +75,13 @@ private:
     void createUniformBuffers();
     void updateGraphicsUniforms();
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect);
+    void createImage(VkExtent2D extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+        VkMemoryPropertyFlagBits memoryPropertyBits, VkImage& image, VkDeviceMemory& imageMemory);
+    VkCommandBuffer beginSingleTimeCommands();
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+    void createPipeline();
+    void createDescriptorPool();
+    void setupGraphicsDescriptors();
 
     std::unique_ptr<vkWindow> m_Window;
     std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;
