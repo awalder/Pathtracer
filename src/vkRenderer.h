@@ -53,10 +53,19 @@ private:
         createSurface();
         findQueueFamilyIndices();
         createLogicalDevice();
+        createSemaphores();
         createSwapchain();
+        createRenderPass();
+        createFrameBuffers();
+        createCommandPools();
+        createCommandBuffers();
+
+        createPipeline();
+        recordCommandBuffers();
     }
     
     void mainLoop();
+    void drawFrame();
     void cleanUp();
     void cleanUpSwapchain();
     void recreateSwapchain();
@@ -82,6 +91,11 @@ private:
     void createPipeline();
     void createDescriptorPool();
     void setupGraphicsDescriptors();
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage vmaUsage,
+        VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory);
+    void recordCommandBuffers();
+    void createVertexAndIndexBuffers();
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     std::unique_ptr<vkWindow> m_Window;
     std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;

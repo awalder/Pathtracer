@@ -11,7 +11,55 @@ void vkRenderer::mainLoop()
     while (m_Window->isOpen())
     {
         m_Window->pollEvents();
+        drawFrame();
 
+    }
+}
+
+void vkRenderer::drawFrame()
+{
+    uint32_t imageIndex = 0;
+    VkResult result = vkAcquireNextImageKHR(m_Device.device, m_Swapchain.swapchain,
+        std::numeric_limits<uint64_t>::max(), m_Graphics.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        std::runtime_error("Suboptimal / out of date swapchain");
+        recreateSwapchain();
+    }
+
+    VkPipelineStageFlags waitStages[]= { VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &m_Graphics.imageAvailableSemaphore;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_Swapchain.commandBuffers[imageIndex];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_Graphics.renderingFinishedSemaphore;
+
+    result = vkQueueSubmit(m_Device.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        std::runtime_error("Suboptimal / out of date swapchain");
+        recreateSwapchain();
+    }
+
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &m_Graphics.renderingFinishedSemaphore;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &m_Swapchain.swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr;
+
+    result = vkQueuePresentKHR(m_Device.graphicsQueue, &presentInfo);
+    if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        std::runtime_error("Suboptimal / out of date swapchain");
+        recreateSwapchain();
     }
 }
 
@@ -20,6 +68,31 @@ void vkRenderer::cleanUp()
 
     cleanUpSwapchain();
 
+    if (m_Graphics.uniformBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_Allocator, m_Graphics.uniformBuffer, m_Graphics.uniformBufferAllocation);
+    }
+    if (m_Graphics.descriptorSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(m_Device.device, m_Graphics.descriptorSetLayout, nullptr);
+    }
+    if (m_Graphics.descriptorPool != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorPool(m_Device.device, m_Graphics.descriptorPool, nullptr);
+    }
+
+    if (m_Graphics.commandPool != VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(m_Device.device, m_Graphics.commandPool, nullptr);
+    }
+    if (m_Graphics.imageAvailableSemaphore != VK_NULL_HANDLE)
+    {
+        vkDestroySemaphore(m_Device.device, m_Graphics.imageAvailableSemaphore, nullptr);
+    }
+    if (m_Graphics.renderingFinishedSemaphore != VK_NULL_HANDLE)
+    {
+        vkDestroySemaphore(m_Device.device, m_Graphics.renderingFinishedSemaphore, nullptr);
+    }
 
     if (m_Allocator != VK_NULL_HANDLE)
     {
@@ -57,13 +130,13 @@ void vkRenderer::cleanUpSwapchain()
     {
         vkDestroyPipelineLayout(m_Device.device, m_Graphics.pipelineLayout, nullptr);
     }
-    if (m_Graphics.renderpass != VK_NULL_HANDLE)
-    {
-        vkDestroyRenderPass(m_Device.device, m_Graphics.renderpass, nullptr);
-    }
     for (auto& f : m_Swapchain.frameBuffers)
     {
         vkDestroyFramebuffer(m_Device.device, f, nullptr);
+    }
+    if (m_Graphics.renderpass != VK_NULL_HANDLE)
+    {
+        vkDestroyRenderPass(m_Device.device, m_Graphics.renderpass, nullptr);
     }
     for (auto& view : m_Swapchain.views)
     {
@@ -296,6 +369,12 @@ void vkRenderer::createLogicalDevice()
 
 void vkRenderer::createSemaphores()
 {
+    VkSemaphoreCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    createInfo.flags = 0;
+
+    VK_CHECK_RESULT(vkCreateSemaphore(m_Device.device, &createInfo, nullptr, &m_Graphics.imageAvailableSemaphore));
+    VK_CHECK_RESULT(vkCreateSemaphore(m_Device.device, &createInfo, nullptr, &m_Graphics.renderingFinishedSemaphore));
 }
 
 void vkRenderer::createSwapchain()
@@ -375,10 +454,24 @@ void vkRenderer::createSwapchain()
 
 void vkRenderer::createCommandPools()
 {
+    VkCommandPoolCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.flags = 0;
+    createInfo.queueFamilyIndex = m_Device.graphicsFamily;
+
+    VK_CHECK_RESULT(vkCreateCommandPool(m_Device.device, &createInfo, nullptr, &m_Graphics.commandPool));
 }
 
 void vkRenderer::createCommandBuffers()
 {
+    m_Swapchain.commandBuffers.resize(m_Swapchain.frameBuffers.size());
+    VkCommandBufferAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = m_Graphics.commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = static_cast<uint32_t>(m_Swapchain.commandBuffers.size());
+
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(m_Device.device, &allocInfo, m_Swapchain.commandBuffers.data()));
 }
 
 void vkRenderer::createDepthResources()
@@ -421,11 +514,13 @@ void vkRenderer::createRenderPass()
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &references[0]; // [0] in this array corresponds to layout(location = 0) out vec4 in fragment shader
-    subpass.pDepthStencilAttachment = &references[1];
+    subpass.pDepthStencilAttachment = nullptr;
+    //subpass.pDepthStencilAttachment = &references[1];
 
     VkRenderPassCreateInfo renderpassInfo = {};
     renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderpassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderpassInfo.attachmentCount = 1;
+    //renderpassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
     renderpassInfo.pAttachments = attachments.data();
     renderpassInfo.subpassCount = 1;
     renderpassInfo.pSubpasses = &subpass;
@@ -437,6 +532,27 @@ void vkRenderer::createRenderPass()
 
 void vkRenderer::createFrameBuffers()
 {
+    m_Swapchain.frameBuffers.resize(m_Swapchain.images.size());
+
+    for (uint32_t i = 0; i < m_Swapchain.frameBuffers.size(); ++i)
+    {
+        std::array<VkImageView, 2> attachments = {
+            m_Swapchain.views[i],
+            m_Graphics.depth.view
+        };
+
+        VkFramebufferCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        createInfo.renderPass = m_Graphics.renderpass;
+        createInfo.attachmentCount = 1;
+        createInfo.pAttachments = attachments.data();
+        createInfo.width = m_Swapchain.extent.width;
+        createInfo.height = m_Swapchain.extent.height;
+        createInfo.layers = 1;
+
+        VK_CHECK_RESULT(vkCreateFramebuffer(m_Device.device, &createInfo, nullptr, &m_Swapchain.frameBuffers[i]));
+    }
+
 }
 
 void vkRenderer::createUniformBuffers()
@@ -485,20 +601,20 @@ void vkRenderer::endSingleTimeCommands(VkCommandBuffer commandBuffer)
 
 void vkRenderer::createPipeline()
 {
-    auto vertexShader = VkTools::createShaderModule("shaders/simple.vert.spv", m_Device.device);
-    auto fragmentShader = VkTools::createShaderModule("shaderes/simple.frag.spv", m_Device.device);
+    auto vertexShader = VkTools::createShaderModule("../../shaders/simple.vert.spv", m_Device.device);
+    auto fragmentShader = VkTools::createShaderModule("../../shaders/simple.frag.spv", m_Device.device);
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
     vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertexShaderStageInfo.module = vertexShader;
-    vertexShaderStageInfo.pName = "simple";
+    vertexShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragmentShaderStageInfo = {};
     fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragmentShaderStageInfo.module = fragmentShader;
-    fragmentShaderStageInfo.pName = "simple";
+    fragmentShaderStageInfo.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
         vertexShaderStageInfo,
@@ -596,23 +712,26 @@ void vkRenderer::createPipeline()
 
     VK_CHECK_RESULT(vkCreatePipelineLayout(m_Device.device, &pipelineLayoutInfo, nullptr, &m_Graphics.pipelineLayout));
 
+    VkGraphicsPipelineCreateInfo pipelineInfo = {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pTessellationState = nullptr;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = nullptr;
+    pipelineInfo.layout = m_Graphics.pipelineLayout;
+    pipelineInfo.renderPass = m_Graphics.renderpass;
+    pipelineInfo.subpass = 0;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_Device.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Graphics.pipeline));
 
     vkDestroyShaderModule(m_Device.device, vertexShader, nullptr);
     vkDestroyShaderModule(m_Device.device, fragmentShader, nullptr);
@@ -623,6 +742,53 @@ void vkRenderer::createDescriptorPool()
 }
 
 void vkRenderer::setupGraphicsDescriptors()
+{
+}
+
+void vkRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage vmaUsage, VkMemoryPropertyFlags properties, VkBuffer & buffer, VmaAllocation & bufferMemory)
+{
+}
+
+void vkRenderer::recordCommandBuffers()
+{
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+    std::array<VkClearValue, 2> clearValues = {};
+    clearValues[0].color = { 0.2f, 0.4f, 0.2f, 1.0f };
+    clearValues[1].depthStencil = { 1.0f, 0 };
+
+    VkRenderPassBeginInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = m_Graphics.renderpass;
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = m_Swapchain.extent;
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
+
+    for (uint32_t i = 0; i < m_Swapchain.frameBuffers.size(); ++i)
+    {
+        renderPassInfo.framebuffer = m_Swapchain.frameBuffers[i];
+
+        vkBeginCommandBuffer(m_Swapchain.commandBuffers[i], &beginInfo);
+
+        vkCmdBeginRenderPass(m_Swapchain.commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(m_Swapchain.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_Graphics.pipeline);
+        vkCmdDraw(m_Swapchain.commandBuffers[i], 3, 1, 0, 0);
+        vkCmdEndRenderPass(m_Swapchain.commandBuffers[i]);
+
+        VK_CHECK_RESULT(vkEndCommandBuffer(m_Swapchain.commandBuffers[i]));
+    }
+
+}
+
+void vkRenderer::createVertexAndIndexBuffers()
+{
+}
+
+void vkRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
 }
 

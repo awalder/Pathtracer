@@ -8,7 +8,7 @@
         "msvc_x64_x64"
       ],
       "buildRoot": "${workspaceRoot}\\bin\\${name}",
-      "installRoot": "${workspaceRoot}\\bin\\${name}",
+      "installRoot": "${workspaceRoot}\\${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": ""
@@ -21,7 +21,7 @@
         "msvc_x64_x64"
       ],
       "buildRoot": "${workspaceRoot}\\bin\\${name}",
-      "installRoot": "${workspaceRoot}\\bin\\${name}",
+      "installRoot": "${workspaceRoot}\\${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": ""
