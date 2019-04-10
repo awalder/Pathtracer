@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <memory>
 
 #include <vulkan/vulkan.h>
 
@@ -24,8 +25,39 @@
 
 #define VULKAN_PATCH_VERSION 101
 
+#include "vkWindow.h"
+#include "vkDebugLayers.h"
+
+class vkRenderer
+{
+public:
+    void run()
+    {
+        initVulkan();
+        mainLoop();
+        cleanUp();
+    }
+private:
+
+    void initVulkan()
+    {
+        m_Window = std::make_unique<vkWindow>(this);
+        m_DebugAndExtensions = std::make_unique<vkDebugAndExtensions>();
+
+        m_Window->initGLFW();
+        m_DebugAndExtensions->init();
+        createInstance();
+    }
+    
+    void mainLoop();
+    void cleanUp();
+    void createInstance();
+
+    VkInstance m_Instance;
+
+    std::unique_ptr<vkWindow> m_Window;
+    std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;
+};
 
 
 
-void f() {
-}
