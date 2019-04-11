@@ -5,12 +5,12 @@ void vkWindow::initGLFW()
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
     m_GLFWwindow = glfwCreateWindow(
         static_cast<int>(m_WindowSize.width),
         static_cast<int>(m_WindowSize.height),
-        ":D",
+        "pt",
         nullptr,
         nullptr);
 
@@ -27,8 +27,9 @@ void vkWindow::onWindowResized(GLFWwindow * window, int width, int height)
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
 
     // If dimensions are zero, window is propably minimized
-    if (width == 0 || height == 0)
+    while (width == 0 || height == 0)
     {
+        //glfwWaitEvents();
         return;
     }
 

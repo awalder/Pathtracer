@@ -27,6 +27,7 @@
 
 #include "vkWindow.h"
 #include "vkDebugLayers.h"
+#include "Mesh.h"
 
 class vkRenderer
 {
@@ -53,7 +54,7 @@ private:
         createSurface();
         findQueueFamilyIndices();
         createLogicalDevice();
-        createSemaphores();
+        createSynchronizationPrimitives();
         createSwapchain();
         createRenderPass();
         createFrameBuffers();
@@ -61,6 +62,7 @@ private:
         createCommandBuffers();
 
         createPipeline();
+        createVertexAndIndexBuffers();
         recordCommandBuffers();
     }
     
@@ -74,7 +76,7 @@ private:
     void createSurface();
     void findQueueFamilyIndices();
     void createLogicalDevice();
-    void createSemaphores();
+    void createSynchronizationPrimitives();
     void createSwapchain();
     void createCommandPools();
     void createCommandBuffers();
@@ -169,6 +171,13 @@ private:
 
     } m_Graphics;
 
+    struct // VertexData
+    {
+        VkBuffer vertexBuffer = VK_NULL_HANDLE;
+        VmaAllocation vertexBufferMemory = VK_NULL_HANDLE;
+        VkBuffer indexBuffer = VK_NULL_HANDLE;
+        VmaAllocation indexBufferMemory = VK_NULL_HANDLE;
+    } m_VertexData;
 
 };
 
