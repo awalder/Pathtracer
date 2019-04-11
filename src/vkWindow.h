@@ -1,15 +1,15 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
 
 class vkRenderer;
 
 class vkWindow
 {
-public:
-
-    vkWindow(vkRenderer* r) : m_vkRenderer(r)
+    public:
+    vkWindow(vkRenderer* r)
+        : m_vkRenderer(r)
     {
     }
 
@@ -21,28 +21,15 @@ public:
 
     void initGLFW();
 
-    inline bool isOpen() const
-    {
-        return !glfwWindowShouldClose(m_GLFWwindow);
-    }
-    inline void pollEvents()
-    {
-        glfwPollEvents();
-    }
-    GLFWwindow* getWindow() const
-    {
-        return m_GLFWwindow;
-    }
-    VkExtent2D getWindowSize() const
-    {
-        return m_WindowSize;
-    }
+    inline bool isOpen() const { return !glfwWindowShouldClose(m_GLFWwindow); }
+    inline void pollEvents() { glfwPollEvents(); }
+    GLFWwindow* getWindow() const { return m_GLFWwindow; }
+    VkExtent2D  getWindowSize() const { return m_WindowSize; }
 
-private:
-
+    private:
     GLFWwindow* m_GLFWwindow = nullptr;
     vkRenderer* m_vkRenderer = nullptr;
-    VkExtent2D m_WindowSize = { 1024, 1024 };
+    VkExtent2D  m_WindowSize = {1024, 1024};
 
     // GLFW callback functions
     static void onWindowResized(GLFWwindow* window, int width, int height);

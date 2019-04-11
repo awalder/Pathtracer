@@ -1,8 +1,8 @@
 #pragma once
 
 #include <iostream>
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include <vulkan/vulkan.h>
 
@@ -15,9 +15,9 @@
 // VMA defines & pragmas
 #define VMA_USE_STL_CONTAINERS 1
 #pragma warning(push, 4)
-#pragma warning(disable: 4127) // conditional expression is constant
-#pragma warning(disable: 4100) // unreferenced formal parameter
-#pragma warning(disable: 4189) // local variable is initialized but not referenced
+#pragma warning(disable : 4127)  // conditional expression is constant
+#pragma warning(disable : 4100)  // unreferenced formal parameter
+#pragma warning(disable : 4189)  // local variable is initialized but not referenced
 
 #include <vma/vk_mem_alloc.h>
 
@@ -25,24 +25,24 @@
 
 #define VULKAN_PATCH_VERSION 101
 
-#include "vkWindow.h"
-#include "vkDebugLayers.h"
 #include "Mesh.h"
+#include "vkDebugLayers.h"
+#include "vkWindow.h"
 
 class vkRenderer
 {
-public:
+    public:
     void run()
     {
         initVulkan();
         mainLoop();
         cleanUp();
     }
-private:
 
+    private:
     void initVulkan()
     {
-        m_Window = std::make_unique<vkWindow>(this);
+        m_Window             = std::make_unique<vkWindow>(this);
         m_DebugAndExtensions = std::make_unique<vkDebugAndExtensions>();
 
         m_Window->initGLFW();
@@ -62,105 +62,122 @@ private:
         createCommandBuffers();
 
         createPipeline();
-        createVertexAndIndexBuffers();
+        prepareNVRTX();
+        //createNVRTXPipeline();
+        //createVertexAndIndexBuffers();
         recordCommandBuffers();
     }
-    
-    void mainLoop();
-    void drawFrame();
-    void cleanUp();
-    void cleanUpSwapchain();
-    void recreateSwapchain();
-    void createInstance();
-    void selectPhysicalDevice();
-    void createSurface();
-    void findQueueFamilyIndices();
-    void createLogicalDevice();
-    void createSynchronizationPrimitives();
-    void createSwapchain();
-    void createCommandPools();
-    void createCommandBuffers();
-    void createDepthResources();
-    void createRenderPass();
-    void createFrameBuffers();
-    void createUniformBuffers();
-    void updateGraphicsUniforms();
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect);
-    void createImage(VkExtent2D extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-        VkMemoryPropertyFlagBits memoryPropertyBits, VkImage& image, VkDeviceMemory& imageMemory);
+
+    void            mainLoop();
+    void            renderFrame();
+    void            cleanUp();
+    void            cleanUpSwapchain();
+    void            recreateSwapchain();
+    void            createInstance();
+    void            selectPhysicalDevice();
+    void            createSurface();
+    void            findQueueFamilyIndices();
+    void            createLogicalDevice();
+    void            createSynchronizationPrimitives();
+    void            createSwapchain();
+    void            createCommandPools();
+    void            createCommandBuffers();
+    void            createDepthResources();
+    void            createRenderPass();
+    void            createFrameBuffers();
+    void            createUniformBuffers();
+    void            updateGraphicsUniforms();
+    VkImageView     createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect);
+    void            createImage(VkExtent2D               extent,
+                                VkFormat                 format,
+                                VkImageTiling            tiling,
+                                VkImageUsageFlags        usage,
+                                VkMemoryPropertyFlagBits memoryPropertyBits,
+                                VkImage&                 image,
+                                VkDeviceMemory&          imageMemory);
     VkCommandBuffer beginSingleTimeCommands();
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-    void createPipeline();
-    void createDescriptorPool();
-    void setupGraphicsDescriptors();
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage vmaUsage,
-        VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory);
-    void recordCommandBuffers();
-    void createVertexAndIndexBuffers();
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void            endSingleTimeCommands(VkCommandBuffer commandBuffer);
+    void            createPipeline();
+    void            createDescriptorPool();
+    void            setupGraphicsDescriptors();
+    void            createBuffer(VkDeviceSize          size,
+                                 VkBufferUsageFlags    usage,
+                                 VmaMemoryUsage        vmaUsage,
+                                 VkMemoryPropertyFlags properties,
+                                 VkBuffer&             buffer,
+                                 VmaAllocation&        bufferMemory);
+    void            recordCommandBuffers();
+    void            createVertexAndIndexBuffers();
+    void            copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    uint32_t        findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-    std::unique_ptr<vkWindow> m_Window;
+    void prepareNVRTX();
+    void createBottomLayerAS();
+    void createNVRTXPipeline();
+
+    std::unique_ptr<vkWindow>             m_Window;
     std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;
-    std::vector<VkPhysicalDevice> m_PhysicalDevices;
+    std::vector<VkPhysicalDevice>         m_PhysicalDevices;
 
-    VmaAllocator m_Allocator = VK_NULL_HANDLE;
-    VkInstance m_Instance = VK_NULL_HANDLE;
-    VkSurfaceKHR m_Surface = VK_NULL_HANDLE;
+    VmaAllocator             m_Allocator = VK_NULL_HANDLE;
+    VkInstance               m_Instance  = VK_NULL_HANDLE;
+    VkSurfaceKHR             m_Surface   = VK_NULL_HANDLE;
     VkSurfaceCapabilitiesKHR m_SurfaceCapabilities;
-    VkSurfaceFormatKHR m_SurfaceFormat;
+    VkSurfaceFormatKHR       m_SurfaceFormat;
 
-    struct // GPU
+    struct  // GPU
     {
-        VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-        VkPhysicalDeviceProperties properties;
-        VkPhysicalDeviceFeatures features;
+        VkPhysicalDevice                     physicalDevice = VK_NULL_HANDLE;
+        VkPhysicalDeviceProperties           properties;
+        VkPhysicalDeviceFeatures             features;
         std::vector<VkQueueFamilyProperties> queueFamilyProperties;
     } m_GPU;
 
-    struct // Device
+    struct  // Device
     {
-        int graphicsFamily = -1;
-        int computeFamily = -1;
-        VkDevice device = VK_NULL_HANDLE;
-        VkQueue graphicsQueue = VK_NULL_HANDLE;
-        VkQueue computeQueue = VK_NULL_HANDLE;
+        int      graphicsFamily = -1;
+        int      computeFamily  = -1;
+        VkDevice device         = VK_NULL_HANDLE;
+        VkQueue  graphicsQueue  = VK_NULL_HANDLE;
+        VkQueue  computeQueue   = VK_NULL_HANDLE;
     } m_Device;
 
-    struct // Swapchain
+    struct  // Swapchain
     {
-        VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-        VkExtent2D extent;
+        VkSwapchainKHR   swapchain = VK_NULL_HANDLE;
+        VkExtent2D       extent;
         VkPresentModeKHR presentMode;
-        VkFormat imageFormat;
+        VkFormat         imageFormat;
 
-        std::vector<VkImage> images;
-        std::vector<VkFramebuffer> frameBuffers;
-        std::vector<VkImageView> views;
-        std::vector<VkPresentModeKHR> presentModeList;
+        std::vector<VkImage>            images;
+        std::vector<VkFramebuffer>      frameBuffers;
+        std::vector<VkImageView>        views;
+        std::vector<VkPresentModeKHR>   presentModeList;
         std::vector<VkSurfaceFormatKHR> surfaceFormatList;
-        std::vector<VkCommandBuffer> commandBuffers;
+        std::vector<VkCommandBuffer>    commandBuffers;
     } m_Swapchain;
 
-    struct // Graphics
+    struct  // Graphics
     {
-        VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
-        VkSemaphore renderingFinishedSemaphore = VK_NULL_HANDLE;
-        VkCommandPool commandPool = VK_NULL_HANDLE;
-        VkRenderPass renderpass = VK_NULL_HANDLE;
-        VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-        VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-        VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-        VkPipeline pipeline = VK_NULL_HANDLE;
-        VkBuffer uniformBuffer = VK_NULL_HANDLE;
-        VmaAllocation uniformBufferAllocation;
+        VkSemaphore           imageAvailableSemaphore    = VK_NULL_HANDLE;
+        VkSemaphore           renderingFinishedSemaphore = VK_NULL_HANDLE;
+        VkCommandPool         commandPool                = VK_NULL_HANDLE;
+        VkRenderPass          renderpass                 = VK_NULL_HANDLE;
+        VkDescriptorPool      descriptorPool             = VK_NULL_HANDLE;
+        VkDescriptorSetLayout descriptorSetLayout        = VK_NULL_HANDLE;
+        VkDescriptorSet       descriptorSet              = VK_NULL_HANDLE;
+        VkPipelineLayout      pipelineLayout             = VK_NULL_HANDLE;
+        VkPipeline            pipeline                   = VK_NULL_HANDLE;
+        VkBuffer              uniformBuffer              = VK_NULL_HANDLE;
+        VmaAllocation         uniformBufferAllocation;
 
-        struct // Depth
+
+        struct  // Depth
         {
-            VkImage image = VK_NULL_HANDLE;
+            VkImage        image  = VK_NULL_HANDLE;
             VkDeviceMemory memory = VK_NULL_HANDLE;
-            VkImageView view = VK_NULL_HANDLE;
-            VkFormat format = VK_FORMAT_D32_SFLOAT;
+            VkImageView    view   = VK_NULL_HANDLE;
+            VkFormat       format = VK_FORMAT_D32_SFLOAT;
         } depth;
 
         struct graphicsUBO
@@ -171,15 +188,21 @@ private:
 
     } m_Graphics;
 
-    struct // VertexData
+    struct  // RTX
     {
-        VkBuffer vertexBuffer = VK_NULL_HANDLE;
+        VkPipeline                RTXpipeline                 = VK_NULL_HANDLE;
+        VkAccelerationStructureNV accelerationStructure       = VK_NULL_HANDLE;
+        VkDeviceMemory            accelerationStructureMemory = VK_NULL_HANDLE;
+        VkBuffer                  asScratchBuffer             = VK_NULL_HANDLE;
+        VkDeviceMemory            asScratchBufferMemory       = VK_NULL_HANDLE;
+
+    } m_nvRTX;
+
+    struct  // VertexData
+    {
+        VkBuffer      vertexBuffer       = VK_NULL_HANDLE;
         VmaAllocation vertexBufferMemory = VK_NULL_HANDLE;
-        VkBuffer indexBuffer = VK_NULL_HANDLE;
-        VmaAllocation indexBufferMemory = VK_NULL_HANDLE;
+        VkBuffer      indexBuffer        = VK_NULL_HANDLE;
+        VmaAllocation indexBufferMemory  = VK_NULL_HANDLE;
     } m_VertexData;
-
 };
-
-
-

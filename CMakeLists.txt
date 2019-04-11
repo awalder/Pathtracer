@@ -37,6 +37,7 @@ add_executable(${NAME} src/main.cpp
                         src/vkDebugLayers.h
                         src/Mesh.cpp
                         src/mesh.h
+                        src/vkLoadRTfunctions.cpp
                         src/implementations.cpp)
 
 target_link_libraries(${NAME}

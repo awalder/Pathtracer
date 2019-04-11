@@ -1,12 +1,11 @@
 #include "vkTools.h"
 #include <fstream>
 
-namespace VkTools
+namespace VkTools {
+const char* deviceType(VkPhysicalDeviceType type)
 {
-    const char* deviceType(VkPhysicalDeviceType type)
+    switch(type)
     {
-        switch (type)
-        {
         case VK_PHYSICAL_DEVICE_TYPE_OTHER:
             return "VK_PHYSICAL_DEVICE_TYPE_OTHER";
             break;
@@ -25,13 +24,13 @@ namespace VkTools
         default:
             return "UNKNOWN DEVICE TYPE";
             break;
-        }
     }
+}
 
-    const char* errorString(VkResult res)
+const char* errorString(VkResult res)
+{
+    switch(res)
     {
-        switch (res)
-        {
         case VK_NOT_READY:
             return "VK_NOT_READY";
             break;
@@ -122,37 +121,37 @@ namespace VkTools
         default:
             return "UNKNOWN!";
             break;
-        }
     }
-    std::vector<char> loadShader(const char * path)
+}
+std::vector<char> loadShader(const char* path)
+{
+    std::ifstream file(path, std::ios::binary | std::ios::ate | std::ios::in);
+
+    if(!file.is_open())
     {
-        std::ifstream file(path, std::ios::binary | std::ios::ate | std::ios::in);
-
-        if (!file.is_open())
-        {
-            throw std::runtime_error("File(shader) not found!");
-        }
-        size_t fileSize = (size_t)file.tellg();
-        std::vector<char> buffer(fileSize);
-
-        file.seekg(0);
-        file.read(buffer.data(), fileSize);
-        file.close();
-
-        return buffer;
+        throw std::runtime_error("File(shader) not found!");
     }
+    size_t            fileSize = (size_t)file.tellg();
+    std::vector<char> buffer(fileSize);
 
-    VkShaderModule createShaderModule(const std::string& path, VkDevice device)
-    {
-        auto code = loadShader(path.c_str());
-        VkShaderModuleCreateInfo createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = static_cast<uint32_t>(code.size());
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    file.close();
 
-        VkShaderModule shaderModule;
-        VK_CHECK_RESULT(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
+    return buffer;
+}
 
-        return shaderModule;
-    }
-} // Namespace VkTools
+VkShaderModule createShaderModule(const std::string& path, VkDevice device)
+{
+    auto                     code       = loadShader(path.c_str());
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType                    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize                 = static_cast<uint32_t>(code.size());
+    createInfo.pCode                    = reinterpret_cast<const uint32_t*>(code.data());
+
+    VkShaderModule shaderModule;
+    VK_CHECK_RESULT(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
+
+    return shaderModule;
+}
+}  // Namespace VkTools

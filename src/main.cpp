@@ -1,7 +1,7 @@
 //#include <iostream>
 
-#include <iostream>
 #include "vkRenderer.h"
+#include <iostream>
 
 //void f() {
 //    spdlog::info("Welcome to spdlog!");
@@ -37,7 +37,7 @@ int main()
     {
         r.run();
     }
-    catch (const std::exception& e)
+    catch(const std::exception& e)
     {
         std::cerr << e.what();
         return EXIT_FAILURE;
