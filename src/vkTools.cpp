@@ -141,7 +141,7 @@ std::vector<char> loadShader(const char* path)
     return buffer;
 }
 
-VkShaderModule createShaderModule(const std::string& path, VkDevice device)
+VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
 {
     auto                     code       = loadShader(path.c_str());
     VkShaderModuleCreateInfo createInfo = {};
@@ -150,8 +150,144 @@ VkShaderModule createShaderModule(const std::string& path, VkDevice device)
     createInfo.pCode                    = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    VK_CHECK_RESULT(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
+    VK_CHECK_RESULT(vkCreateShaderModule(deviceCtx, &createInfo, nullptr, &shaderModule));
 
     return shaderModule;
 }
+
+void createBuffer(Context*            ctx,
+                  VkDeviceSize          size,
+                  VkBufferUsageFlags    usage,
+                  VmaMemoryUsage        vmaUsage,
+                  VkMemoryPropertyFlags properties,
+                  VkBuffer&             buffer,
+                  VmaAllocation&        bufferMemory)
+{
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.flags;
+    bufferInfo.size        = size;
+    bufferInfo.usage       = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferInfo.queueFamilyIndexCount;
+    bufferInfo.pQueueFamilyIndices;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage                   = vmaUsage;
+    allocInfo.requiredFlags;
+    allocInfo.preferredFlags = properties;
+    allocInfo.memoryTypeBits;
+    allocInfo.pool;
+
+    VK_CHECK_RESULT(vmaCreateBuffer(ctx->allocator, &bufferInfo, &allocInfo, &buffer,
+                                    &bufferMemory, nullptr));
+}
+
+void createBufferNoVMA(Context*            ctx,
+                       VkDeviceSize          size,
+                       VkBufferUsageFlags    usage,
+                       VkMemoryPropertyFlags properties,
+                       VkBuffer*             buffer,
+                       VkDeviceMemory*       bufferMemory)
+{
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size               = size;
+    bufferInfo.usage              = usage;
+    bufferInfo.sharingMode        = VK_SHARING_MODE_EXCLUSIVE;
+
+    VK_CHECK_RESULT(vkCreateBuffer(ctx->device, &bufferInfo, nullptr, buffer));
+
+    VkMemoryRequirements memoryRequirements = {};
+    vkGetBufferMemoryRequirements(ctx->device, *buffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo = {};
+    allocateInfo.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize       = memoryRequirements.size;
+    allocateInfo.memoryTypeIndex =
+        findMemoryType(ctx->gpu.physicalDevice, memoryRequirements.memoryTypeBits, properties);
+
+    VK_CHECK_RESULT(vkAllocateMemory(ctx->device, &allocateInfo, nullptr, bufferMemory));
+
+    VK_CHECK_RESULT(vkBindBufferMemory(ctx->device, *buffer, *bufferMemory, 0));
+}
+
+uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
+                        uint32_t              typeFilter,
+                        VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+    for(uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+    {
+        if((typeFilter & (1 << i))
+           && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+        {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("failed to find suitable memory type!");
+}
+
+VkCommandBuffer beginSingleTimeCommands(const Context* ctx)
+{
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool                 = ctx->graphics.commandPool;
+    allocateInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount          = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(ctx->device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void endSingleTimeCommands(const Context* ctx, VkCommandBuffer commandBuffer)
+{
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo       = {};
+    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers    = &commandBuffer;
+
+    vkQueueSubmit(ctx->queues.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(ctx->queues.graphicsQueue);
+
+    vkFreeCommandBuffers(ctx->device, ctx->graphics.commandPool, 1, &commandBuffer);
+}
+
+VkImageView createImageView(Context* ctx, VkImage image, VkFormat format, VkImageAspectFlags aspect)
+{
+    VkImageViewCreateInfo createInfo = {};
+    createInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.flags;
+    createInfo.image                           = image;
+    createInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+    createInfo.format                          = format;
+    createInfo.components.r                    = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.g                    = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.b                    = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.a                    = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.subresourceRange.aspectMask     = aspect;
+    createInfo.subresourceRange.baseMipLevel   = 0;
+    createInfo.subresourceRange.levelCount     = 1;
+    createInfo.subresourceRange.baseArrayLayer = 0;
+    createInfo.subresourceRange.layerCount     = 1;
+
+    VkImageView imageView;
+    VK_CHECK_RESULT(vkCreateImageView(ctx->device, &createInfo, nullptr, &imageView));
+    return imageView;
+}
+
+
 }  // Namespace VkTools

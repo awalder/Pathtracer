@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
-set(NAME acgPathtracer)
+set(NAME pathtracer)
 project(${NAME}
         VERSION 0.0.1 DESCRIPTION
                 "Pathtracer for course 'Advanced graphics course'"
-        LANGUAGES CXX)
+        LANGUAGES C CXX)
 
 find_package(Vulkan REQUIRED)
 set(VULKAN_LIBRARY ${Vulkan_LIBRARY})
@@ -27,8 +27,8 @@ set(CMAKE_INSTALL_DIR ${CMAKE_SOURCE_DIR}/bin)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${NAME})
 
 add_executable(${NAME} src/main.cpp
-                        src/vkRenderer.cpp
-                        src/vkRenderer.h
+                        src/vkContext.cpp
+                        src/vkContext.h
                         src/vkWindow.cpp
                         src/vkWindow.h
                         src/vkTools.cpp
@@ -37,7 +37,17 @@ add_executable(${NAME} src/main.cpp
                         src/vkDebugLayers.h
                         src/Mesh.cpp
                         src/mesh.h
-                        src/vkLoadRTfunctions.cpp
+                        src/vkRT_LoadFunctionPtrs.cpp
+                        src/vkRT_BLAS.cpp
+                        src/vkRT_BLAS.h
+                        src/vkRT_TLAS.cpp
+                        src/vkRT_TLAS.h
+                        src/vkRT_SBT.cpp
+                        src/vkRT_SBT.h
+                        src/vkRT_Pipeline.cpp
+                        src/vkRT_Pipeline.h
+                        src/vkRT_DescriptorSets.cpp
+                        src/vkRT_DescriptorSets.h
                         src/implementations.cpp)
 
 target_link_libraries(${NAME}

@@ -225,7 +225,7 @@ public:
         automatic_registration_ = automatic_regsistration;
     }
 
-    static registry &instance()
+    static registry &m_Instance()
     {
         static registry s_instance;
         return s_instance;

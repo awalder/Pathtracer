@@ -16,8 +16,8 @@ class vkDebugAndExtensions
     std::vector<const char*> getRequiredDeviceExtensions() const;
     std::vector<const char*> getRequiredInstanceLayers() const;
 
-    void setupDebugMessenger(VkInstance instance);
-    void cleanUp(VkInstance instance);
+    void setupDebugMessenger(VkInstance m_Instance);
+    void cleanUp(VkInstance m_Instance);
 
     struct LayerProperties
     {
@@ -37,6 +37,7 @@ class vkDebugAndExtensions
     std::vector<const char*> m_RequiredInstanceExtensions;
 
     // Platform specific swapchain extension
+    //std::vector<const char*> m_RequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     std::vector<const char*> m_RequiredDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_NV_RAY_TRACING_EXTENSION_NAME,
         VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
@@ -50,11 +51,11 @@ class vkDebugAndExtensions
                                                         const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
                                                         void*                                       userData);
 
-    VkResult createDebugUtilsMessengerEXT(VkInstance                                instance,
+    VkResult createDebugUtilsMessengerEXT(VkInstance                                m_Instance,
                                           const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
                                           const VkAllocationCallbacks*              pAllocator,
                                           VkDebugUtilsMessengerEXT*                 pMessenger);
-    void     destroyDebugUtilsMessengerEXT(VkInstance                   instance,
+    void     destroyDebugUtilsMessengerEXT(VkInstance                   m_Instance,
                                            VkDebugUtilsMessengerEXT     messenger,
                                            const VkAllocationCallbacks* pAllocator);
 

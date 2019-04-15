@@ -3,12 +3,12 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
-class vkRenderer;
+class vkContext;
 
 class vkWindow
 {
     public:
-    vkWindow(vkRenderer* r)
+    vkWindow(vkContext* r)
         : m_vkRenderer(r)
     {
     }
@@ -28,7 +28,7 @@ class vkWindow
 
     private:
     GLFWwindow* m_GLFWwindow = nullptr;
-    vkRenderer* m_vkRenderer = nullptr;
+    vkContext* m_vkRenderer = nullptr;
     VkExtent2D  m_WindowSize = {1024, 1024};
 
     // GLFW callback functions

@@ -3,47 +3,80 @@
 static VkDevice g_Device = VK_NULL_HANDLE;
 
 VKAPI_ATTR VkResult VKAPI_CALL
-                    vkCreateAccelerationStructureNV(VkDevice                                   device,
+                    vkCreateAccelerationStructureNV(VkDevice                                   deviceCtx,
                                                     const VkAccelerationStructureCreateInfoNV* pCreateInfo,
                                                     const VkAllocationCallbacks*               pAllocator,
                                                     VkAccelerationStructureNV*                 pAccelerationStructure)
 {
-    g_Device               = device;
+    g_Device               = deviceCtx;
     static const auto func = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(
-        vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
-    return func(device, pCreateInfo, pAllocator, pAccelerationStructure);
+        vkGetDeviceProcAddr(deviceCtx, "vkCreateAccelerationStructureNV"));
+    return func(deviceCtx, pCreateInfo, pAllocator, pAccelerationStructure);
 }
 
 VKAPI_ATTR void VKAPI_CALL
-                vkDestroyAccelerationStructureNV(VkDevice                     device,
-                                                 VkAccelerationStructureNV    accelerationStructure,
+                vkDestroyAccelerationStructureNV(VkDevice                     deviceCtx,
+                                                 VkAccelerationStructureNV    structure,
                                                  const VkAllocationCallbacks* pAllocator)
 {
     static const auto func = reinterpret_cast<PFN_vkDestroyAccelerationStructureNV>(
-        vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureNV"));
-    return func(device, accelerationStructure, pAllocator);
+        vkGetDeviceProcAddr(deviceCtx, "vkDestroyAccelerationStructureNV"));
+    return func(deviceCtx, structure, pAllocator);
 }
 
 VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsNV(
-    VkDevice                                               device,
+    VkDevice                                               deviceCtx,
     const VkAccelerationStructureMemoryRequirementsInfoNV* pInfo,
     VkMemoryRequirements2KHR*                              pMemoryRequirements)
 {
     static const auto func = reinterpret_cast<PFN_vkGetAccelerationStructureMemoryRequirementsNV>(
-        vkGetDeviceProcAddr(device, "vkGetAccelerationStructureMemoryRequirementsNV"));
-    return func(device, pInfo, pMemoryRequirements);
+        vkGetDeviceProcAddr(deviceCtx, "vkGetAccelerationStructureMemoryRequirementsNV"));
+    return func(deviceCtx, pInfo, pMemoryRequirements);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-                    vkBindAccelerationStructureMemoryNV(VkDevice                                       device,
+                    vkBindAccelerationStructureMemoryNV(VkDevice                                       deviceCtx,
                                                         uint32_t                                       bindInfoCount,
                                                         const VkBindAccelerationStructureMemoryInfoNV* pBindInfos)
 {
     static const auto func = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(
-        vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
-    return func(device, bindInfoCount, pBindInfos);
+        vkGetDeviceProcAddr(deviceCtx, "vkBindAccelerationStructureMemoryNV"));
+    return func(deviceCtx, bindInfoCount, pBindInfos);
 }
 
+//VKAPI_ATTR void VKAPI_CALL
+//                vkCmdBuildAccelerationStructureNV(VkCommandBuffer                      commandBuffer,
+//                                                  const VkAccelerationStructureInfoNV* pInfo,
+//                                                  VkBuffer                             instanceData,
+//                                                  VkDeviceSize                         instanceOffset,
+//                                                  VkBool32                             update,
+//                                                  VkAccelerationStructureNV            dst,
+//                                                  VkAccelerationStructureNV            src,
+//                                                  VkBuffer                             scratch,
+//                                                  VkDeviceSize                         scratchOffset)
+//{
+//    static const auto func = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(
+//        vkGetDeviceProcAddr(g_Device, "vkCmdBuildAccelerationStructureNV"));
+//    return func(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
+//                scratchOffset);
+//}
+
+//VKAPI_ATTR void VKAPI_CALL
+//                vkCmdBuildAccelerationStructureNV(VkCommandBuffer                      commandBuffer,
+//                                                  const VkAccelerationStructureInfoNV* pInfo,
+//                                                  VkBuffer                             instanceData,
+//                                                  VkDeviceSize                         instanceOffset,
+//                                                  VkBool32                             update,
+//                                                  VkAccelerationStructureNV            dst,
+//                                                  VkAccelerationStructureNV            src,
+//                                                  VkBuffer                             scratch,
+//                                                  VkDeviceSize                         scratchOffset)
+//{
+//    static const auto func = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(
+//        vkGetDeviceProcAddr(g_Device, "vkCmdBuildAccelerationStructureNV"));
+//    return func(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
+//                scratchOffset);
+//}
 VKAPI_ATTR void VKAPI_CALL
                 vkCmdBuildAccelerationStructureNV(VkCommandBuffer                      commandBuffer,
                                                   const VkAccelerationStructureInfoNV* pInfo,
@@ -56,10 +89,12 @@ VKAPI_ATTR void VKAPI_CALL
                                                   VkDeviceSize                         scratchOffset)
 {
     static const auto func = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(
-        vkGetDeviceProcAddr(g_Device, "PFN_vkCmdBuildAccelerationStructureNV"));
+        vkGetDeviceProcAddr(g_Device, "vkCmdBuildAccelerationStructureNV"));
     return func(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
                 scratchOffset);
 }
+
+
 
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyAccelerationStructureNV(VkCommandBuffer           cmdBuf,
                                                             VkAccelerationStructureNV dst,
@@ -97,20 +132,20 @@ VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysNV(VkCommandBuffer commandBuffer,
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-                    vkCreateRayTracingPipelinesNV(VkDevice                                device,
+                    vkCreateRayTracingPipelinesNV(VkDevice                                deviceCtx,
                                                   VkPipelineCache                         pipelineCache,
                                                   uint32_t                                createInfoCount,
                                                   const VkRayTracingPipelineCreateInfoNV* pCreateInfos,
                                                   const VkAllocationCallbacks*            pAllocator,
                                                   VkPipeline*                             pPipelines)
 {
-    g_Device               = device;
+    g_Device               = deviceCtx;
     static const auto func = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(
-        vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesNV"));
-    return func(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+        vkGetDeviceProcAddr(deviceCtx, "vkCreateRayTracingPipelinesNV"));
+    return func(deviceCtx, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice   device,
+VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice   deviceCtx,
                                                                    VkPipeline pipeline,
                                                                    uint32_t   firstGroup,
                                                                    uint32_t   groupCount,
@@ -118,19 +153,19 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice   de
                                                                    void*      pData)
 {
     static const auto func = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesNV>(
-        vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesNV"));
-    return func(device, pipeline, firstGroup, groupCount, dataSize, pData);
+        vkGetDeviceProcAddr(deviceCtx, "vkGetRayTracingShaderGroupHandlesNV"));
+    return func(deviceCtx, pipeline, firstGroup, groupCount, dataSize, pData);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-                    vkGetAccelerationStructureHandleNV(VkDevice                  device,
-                                                       VkAccelerationStructureNV accelerationStructure,
+                    vkGetAccelerationStructureHandleNV(VkDevice                  deviceCtx,
+                                                       VkAccelerationStructureNV structure,
                                                        size_t                    dataSize,
                                                        void*                     pData)
 {
     static const auto func = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(
-        vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
-    return func(device, accelerationStructure, dataSize, pData);
+        vkGetDeviceProcAddr(deviceCtx, "vkGetAccelerationStructureHandleNV"));
+    return func(deviceCtx, structure, dataSize, pData);
 }
 
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteAccelerationStructuresPropertiesNV(
@@ -147,11 +182,11 @@ VKAPI_ATTR void VKAPI_CALL vkCmdWriteAccelerationStructuresPropertiesNV(
                 queryPool, firstQuery);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL vkCompileDeferredNV(VkDevice   device,
+VKAPI_ATTR VkResult VKAPI_CALL vkCompileDeferredNV(VkDevice   deviceCtx,
                                                    VkPipeline pipeline,
                                                    uint32_t   shader)
 {
     static const auto func = reinterpret_cast<PFN_vkCompileDeferredNV>(
         vkGetDeviceProcAddr(g_Device, "vkCompileDeferredNV"));
-    return func(device, pipeline, shader);
+    return func(deviceCtx, pipeline, shader);
 }

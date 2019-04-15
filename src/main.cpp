@@ -1,6 +1,4 @@
-//#include <iostream>
-
-#include "vkRenderer.h"
+#include "vkContext.h"
 #include <iostream>
 
 //void f() {
@@ -32,7 +30,7 @@
 
 int main()
 {
-    vkRenderer r;
+    vkContext r;
     try
     {
         r.run();

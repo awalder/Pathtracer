@@ -38,7 +38,7 @@ std::vector<const char*> vkDebugAndExtensions::getRequiredInstanceLayers() const
     return m_RequiredInstanceLayers;
 }
 
-void vkDebugAndExtensions::setupDebugMessenger(VkInstance instance)
+void vkDebugAndExtensions::setupDebugMessenger(VkInstance m_Instance)
 {
     VkDebugUtilsMessengerCreateInfoEXT debugInfo = {};
     debugInfo.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -55,15 +55,15 @@ void vkDebugAndExtensions::setupDebugMessenger(VkInstance instance)
     debugInfo.pfnUserCallback = debug_messenger_callback;
     debugInfo.pUserData       = nullptr;
 
-    VK_CHECK_RESULT(createDebugUtilsMessengerEXT(instance, &debugInfo, nullptr, &m_Messenger));
+    VK_CHECK_RESULT(createDebugUtilsMessengerEXT(m_Instance, &debugInfo, nullptr, &m_Messenger));
     std::cout << "\n** DebugUtilsMessenger object created **" << std::endl;
 }
 
-void vkDebugAndExtensions::cleanUp(VkInstance instance)
+void vkDebugAndExtensions::cleanUp(VkInstance m_Instance)
 {
     if(m_Messenger != VK_NULL_HANDLE)
     {
-        destroyDebugUtilsMessengerEXT(instance, m_Messenger, nullptr);
+        destroyDebugUtilsMessengerEXT(m_Instance, m_Messenger, nullptr);
         std::cout << "\n** DebugUtilsMessenger object destroyed **" << std::endl;
     }
 }
@@ -137,38 +137,37 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkDebugAndExtensions::debug_messenger_callback(
         }
     }
     std::cout << ss.str();
+    std::cout << "\n";
     return false;
 }
 
 VkResult vkDebugAndExtensions::createDebugUtilsMessengerEXT(
-    VkInstance                                instance,
+    VkInstance                                m_Instance,
     const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
     const VkAllocationCallbacks*              pAllocator,
     VkDebugUtilsMessengerEXT*                 pMessenger)
 {
     static const auto func =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance,
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_Instance,
                                                                   "vkCreateDebugUtilsMessengerEXT");
 
     if(func != nullptr)
     {
-        return func(instance, pCreateInfo, pAllocator, pMessenger);
+        return func(m_Instance, pCreateInfo, pAllocator, pMessenger);
     }
     else
     {
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
-
-    return VK_SUCCESS;
 }
 
-void vkDebugAndExtensions::destroyDebugUtilsMessengerEXT(VkInstance                   instance,
+void vkDebugAndExtensions::destroyDebugUtilsMessengerEXT(VkInstance                   m_Instance,
                                                          VkDebugUtilsMessengerEXT     messenger,
                                                          const VkAllocationCallbacks* pAllocator)
 {
     static const auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-        instance, "vkDestroyDebugUtilsMessengerEXT");
-    func(instance, messenger, pAllocator);
+        m_Instance, "vkDestroyDebugUtilsMessengerEXT");
+    func(m_Instance, messenger, pAllocator);
 }
 
 
