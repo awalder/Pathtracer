@@ -124,9 +124,76 @@ class vkContext
     std::unique_ptr<vkWindow>             m_Window;
     std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;
     VkTools::Context                      m_ctx;
-    bool                                  m_RenderMode_Raster = true;
+    bool                                  m_RenderMode_Raster = false;
     uint32_t                              m_currentImage      = 0;
 
+struct Context
+{
+    VkDevice                 device    = VK_NULL_HANDLE;
+    VmaAllocator             allocator = VK_NULL_HANDLE;
+    VkSurfaceKHR             surface   = VK_NULL_HANDLE;
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    VkSurfaceFormatKHR       surfaceFormat;
+    VkSwapchainKHR           swapchain = VK_NULL_HANDLE;
+
+    std::vector<VkPhysicalDevice> physicalDevices;
+
+    struct  // GPU
+    {
+        VkPhysicalDevice                     physicalDevice = VK_NULL_HANDLE;
+        VkPhysicalDeviceProperties           properties;
+        VkPhysicalDeviceFeatures             features;
+        std::vector<VkQueueFamilyProperties> queueFamilyProperties;
+    } gpu;
+
+    struct  // Queues
+    {
+        int     graphicsFamily = -1;
+        int     computeFamily  = -1;
+        VkQueue graphicsQueue  = VK_NULL_HANDLE;
+        VkQueue computeQueue   = VK_NULL_HANDLE;
+    } queues;
+
+    struct  // Swapchain
+    {
+        VkExtent2D       extent;
+        VkPresentModeKHR presentMode;
+        VkFormat         imageFormat;
+
+        std::vector<VkImage>            images;
+        std::vector<VkFramebuffer>      frameBuffers;
+        std::vector<VkImageView>        views;
+        std::vector<VkPresentModeKHR>   presentModeList;
+        std::vector<VkSurfaceFormatKHR> surfaceFormatList;
+        std::vector<VkCommandBuffer>    commandBuffers;
+    } swapchainCtx;
+
+    struct  // Graphics
+    {
+        VkSemaphore                  imageAvailableSemaphore    = VK_NULL_HANDLE;
+        VkSemaphore                  renderingFinishedSemaphore = VK_NULL_HANDLE;
+        VkCommandPool                commandPool                = VK_NULL_HANDLE;
+        VkRenderPass                 renderpass                 = VK_NULL_HANDLE;
+        VkDescriptorPool             descriptorPool             = VK_NULL_HANDLE;
+        VkDescriptorSetLayout        descriptorSetLayout        = VK_NULL_HANDLE;
+        std::vector<VkDescriptorSet> descriptorSets;
+        VkPipelineLayout             pipelineLayout = VK_NULL_HANDLE;
+        VkPipeline                   pipeline       = VK_NULL_HANDLE;
+        std::vector<VkBuffer>        uniformBuffers;
+        std::vector<VmaAllocation>   uniformBufferAllocations;
+        graphicsUBO                  ubo;
+
+        struct  // Depth
+        {
+            VkImage       image  = VK_NULL_HANDLE;
+            VmaAllocation memory = VK_NULL_HANDLE;
+            VkImageView   view   = VK_NULL_HANDLE;
+            VkFormat      format = VK_FORMAT_D32_SFLOAT;
+        } depth;
+
+
+    } graphics;
+};
     //NV RTX
 
     void                                   initRaytracing();
