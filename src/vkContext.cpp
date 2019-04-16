@@ -3,14 +3,53 @@
 #include <array>
 #include <spdlog/spdlog.h>
 
+void vkContext::initVulkan()
+{
+    m_window             = std::make_unique<vkWindow>(this);
+    m_debugAndExtensions = std::make_unique<vkDebugAndExtensions>();
+
+    m_window->initGLFW();
+
+    m_debugAndExtensions->init();
+    createInstance();
+    m_debugAndExtensions->setupDebugMessenger(m_instance);
+    selectPhysicalDevice();
+    createSurface();
+    findQueueFamilyIndices();
+    createLogicalDevice();
+    createSynchronizationPrimitives();
+    createSwapchain();
+    createRenderPass();
+    createCommandPools();
+    createDepthResources();
+    createFrameBuffers();
+    createCommandBuffers();
+    createUniformBuffers();
+
+    createDescriptorPool();
+    setupGraphicsDescriptors();
+
+    createPipeline();
+    createVertexAndIndexBuffers();
+
+    initRaytracing();
+    createGeometryInstances();
+    createAccelerationStructures();
+    createRaytracingDescriptorSet();
+    createRaytracingPipeline();
+    createShaderBindingTable();
+
+    recordCommandBuffers();
+}
+
 void vkContext::mainLoop()
 {
-    if(!m_Window)
+    if(!m_window)
         return;
 
-    while(m_Window->isOpen())
+    while(m_window->isOpen())
     {
-        m_Window->pollEvents();
+        m_window->pollEvents();
         renderFrame();
     }
 }
@@ -19,8 +58,8 @@ void vkContext::renderFrame()
 {
     uint32_t imageIndex = 0;
     VkResult result =
-        vkAcquireNextImageKHR(m_ctx.device, m_ctx.swapchain, std::numeric_limits<uint64_t>::max(),
-                              m_ctx.graphics.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        vkAcquireNextImageKHR(m_device, m_swapchain.swapchain, std::numeric_limits<uint64_t>::max(),
+                              m_graphics.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         recreateSwapchain();
@@ -31,25 +70,25 @@ void vkContext::renderFrame()
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-    VkSubmitInfo submitInfo       = {};
-    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores    = &m_ctx.graphics.imageAvailableSemaphore;
-    submitInfo.pWaitDstStageMask  = waitStages;
-    submitInfo.commandBufferCount = 1;
+    VkSubmitInfo submitInfo         = {};
+    submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount   = 1;
+    submitInfo.pWaitSemaphores      = &m_graphics.imageAvailableSemaphore;
+    submitInfo.pWaitDstStageMask    = waitStages;
+    submitInfo.commandBufferCount   = 1;
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &m_ctx.graphics.renderingFinishedSemaphore;
+    submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphore;
 
-    if(m_RenderMode_Raster)
+    if(m_renderMode_Raster)
     {
-        submitInfo.pCommandBuffers = &m_ctx.swapchainCtx.commandBuffers[imageIndex];
+        submitInfo.pCommandBuffers = &m_swapchain.commandBuffers[imageIndex];
     }
     else
     {
         submitInfo.pCommandBuffers = &m_rtCommandBuffers[imageIndex];
     }
 
-    result = vkQueueSubmit(m_ctx.queues.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    result = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         recreateSwapchain();
@@ -58,20 +97,20 @@ void vkContext::renderFrame()
     VkPresentInfoKHR presentInfo   = {};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &m_ctx.graphics.renderingFinishedSemaphore;
+    presentInfo.pWaitSemaphores    = &m_graphics.renderingFinishedSemaphore;
     presentInfo.swapchainCount     = 1;
-    presentInfo.pSwapchains        = &m_ctx.swapchain;
+    presentInfo.pSwapchains        = &m_swapchain.swapchain;
     presentInfo.pImageIndices      = &imageIndex;
     presentInfo.pResults           = nullptr;
 
-    result = vkQueuePresentKHR(m_ctx.queues.graphicsQueue, &presentInfo);
+    result = vkQueuePresentKHR(m_queue, &presentInfo);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         recreateSwapchain();
     }
 
     // Poor solution, move to fences
-    vkQueueWaitIdle(m_ctx.queues.graphicsQueue);
+    vkQueueWaitIdle(m_queue);
 }
 
 void vkContext::cleanUp()
@@ -88,145 +127,142 @@ void vkContext::cleanUp()
 
     if(m_rtPipelineLayout != VK_NULL_HANDLE)
     {
-        vkDestroyPipelineLayout(m_ctx.device, m_rtPipelineLayout, nullptr);
+        vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
     }
     if(m_rtPipeline != VK_NULL_HANDLE)
     {
-        vkDestroyPipeline(m_ctx.device, m_rtPipeline, nullptr);
+        vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
     }
     if(m_sbtBuffer != VK_NULL_HANDLE)
     {
-        vkDestroyBuffer(m_ctx.device, m_sbtBuffer, nullptr);
+        vkDestroyBuffer(m_device, m_sbtBuffer, nullptr);
     }
     if(m_sbtMemory != VK_NULL_HANDLE)
     {
-        vkFreeMemory(m_ctx.device, m_sbtMemory, nullptr);
+        vkFreeMemory(m_device, m_sbtMemory, nullptr);
     }
 
     if(m_VertexData.vertexBuffer != VK_NULL_HANDLE)
     {
-        vmaDestroyBuffer(m_ctx.allocator, m_VertexData.vertexBuffer,
-                         m_VertexData.vertexBufferMemory);
+        vmaDestroyBuffer(m_allocator, m_VertexData.vertexBuffer, m_VertexData.vertexBufferMemory);
     }
     if(m_VertexData.indexBuffer != VK_NULL_HANDLE)
     {
-        vmaDestroyBuffer(m_ctx.allocator, m_VertexData.indexBuffer, m_VertexData.indexBufferMemory);
+        vmaDestroyBuffer(m_allocator, m_VertexData.indexBuffer, m_VertexData.indexBufferMemory);
     }
     if(m_VertexData.materialBuffer != VK_NULL_HANDLE)
     {
-        vmaDestroyBuffer(m_ctx.allocator, m_VertexData.materialBuffer,
+        vmaDestroyBuffer(m_allocator, m_VertexData.materialBuffer,
                          m_VertexData.materialBufferAllocation);
     }
     if(m_rtDescriptorSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_ctx.device, m_rtDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayout, nullptr);
     }
     if(m_rtDescriptorPool != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorPool(m_ctx.device, m_rtDescriptorPool, nullptr);
+        vkDestroyDescriptorPool(m_device, m_rtDescriptorPool, nullptr);
     }
 
 
-    for(size_t i = 0; i < m_ctx.graphics.uniformBuffers.size(); ++i)
+    for(size_t i = 0; i < m_graphics.uniformBuffers.size(); ++i)
     {
-        if(m_ctx.graphics.uniformBuffers[i] != VK_NULL_HANDLE)
+        if(m_graphics.uniformBuffers[i] != VK_NULL_HANDLE)
         {
-            vmaDestroyBuffer(m_ctx.allocator, m_ctx.graphics.uniformBuffers[i],
-                             m_ctx.graphics.uniformBufferAllocations[i]);
+            vmaDestroyBuffer(m_allocator, m_graphics.uniformBuffers[i],
+                             m_graphics.uniformBufferAllocations[i]);
         }
     }
 
-    if(m_ctx.graphics.descriptorSetLayout != VK_NULL_HANDLE)
+    if(m_graphics.descriptorSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_ctx.device, m_ctx.graphics.descriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_device, m_graphics.descriptorSetLayout, nullptr);
     }
-    if(m_ctx.graphics.descriptorPool != VK_NULL_HANDLE)
+    if(m_graphics.descriptorPool != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorPool(m_ctx.device, m_ctx.graphics.descriptorPool, nullptr);
-    }
-
-    if(m_ctx.graphics.commandPool != VK_NULL_HANDLE)
-    {
-        vkDestroyCommandPool(m_ctx.device, m_ctx.graphics.commandPool, nullptr);
-    }
-    if(m_ctx.graphics.imageAvailableSemaphore != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(m_ctx.device, m_ctx.graphics.imageAvailableSemaphore, nullptr);
-    }
-    if(m_ctx.graphics.renderingFinishedSemaphore != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(m_ctx.device, m_ctx.graphics.renderingFinishedSemaphore, nullptr);
+        vkDestroyDescriptorPool(m_device, m_graphics.descriptorPool, nullptr);
     }
 
-    if(m_ctx.allocator != VK_NULL_HANDLE)
+    if(m_graphics.commandPool != VK_NULL_HANDLE)
     {
-        vmaDestroyAllocator(m_ctx.allocator);
+        vkDestroyCommandPool(m_device, m_graphics.commandPool, nullptr);
     }
-    if(m_ctx.device != VK_NULL_HANDLE)
+    if(m_graphics.imageAvailableSemaphore != VK_NULL_HANDLE)
     {
-        vkDestroyDevice(m_ctx.device, nullptr);
+        vkDestroySemaphore(m_device, m_graphics.imageAvailableSemaphore, nullptr);
     }
-    if(m_DebugAndExtensions->isValidationLayersEnabled())
+    if(m_graphics.renderingFinishedSemaphore != VK_NULL_HANDLE)
     {
-        m_DebugAndExtensions->cleanUp(m_Instance);
+        vkDestroySemaphore(m_device, m_graphics.renderingFinishedSemaphore, nullptr);
     }
-    if(m_ctx.surface != VK_NULL_HANDLE)
+
+    if(m_allocator != VK_NULL_HANDLE)
     {
-        vkDestroySurfaceKHR(m_Instance, m_ctx.surface, nullptr);
+        vmaDestroyAllocator(m_allocator);
     }
-    if(m_Instance != VK_NULL_HANDLE)
+    if(m_device != VK_NULL_HANDLE)
     {
-        vkDestroyInstance(m_Instance, nullptr);
+        vkDestroyDevice(m_device, nullptr);
+    }
+    if(m_debugAndExtensions->isValidationLayersEnabled())
+    {
+        m_debugAndExtensions->cleanUp(m_instance);
+    }
+    if(m_surface.surface != VK_NULL_HANDLE)
+    {
+        vkDestroySurfaceKHR(m_instance, m_surface.surface, nullptr);
+    }
+    if(m_instance != VK_NULL_HANDLE)
+    {
+        vkDestroyInstance(m_instance, nullptr);
     }
 }
 
 void vkContext::cleanUpSwapchain()
 {
-    vkQueueWaitIdle(m_ctx.queues.graphicsQueue);
+    vkQueueWaitIdle(m_queue);
 
-    vkFreeCommandBuffers(m_ctx.device, m_ctx.graphics.commandPool,
-                         static_cast<uint32_t>(m_ctx.swapchainCtx.commandBuffers.size()),
-                         m_ctx.swapchainCtx.commandBuffers.data());
-    if(m_ctx.graphics.pipeline != VK_NULL_HANDLE)
+    vkFreeCommandBuffers(m_device, m_graphics.commandPool,
+                         static_cast<uint32_t>(m_swapchain.commandBuffers.size()),
+                         m_swapchain.commandBuffers.data());
+    if(m_graphics.pipeline != VK_NULL_HANDLE)
     {
-        vkDestroyPipeline(m_ctx.device, m_ctx.graphics.pipeline, nullptr);
+        vkDestroyPipeline(m_device, m_graphics.pipeline, nullptr);
     }
-    if(m_ctx.graphics.pipelineLayout != VK_NULL_HANDLE)
+    if(m_graphics.pipelineLayout != VK_NULL_HANDLE)
     {
-        vkDestroyPipelineLayout(m_ctx.device, m_ctx.graphics.pipelineLayout, nullptr);
+        vkDestroyPipelineLayout(m_device, m_graphics.pipelineLayout, nullptr);
     }
-    for(auto& f : m_ctx.swapchainCtx.frameBuffers)
+    for(auto& f : m_swapchain.frameBuffers)
     {
-        vkDestroyFramebuffer(m_ctx.device, f, nullptr);
+        vkDestroyFramebuffer(m_device, f, nullptr);
     }
-    if(m_ctx.graphics.renderpass != VK_NULL_HANDLE)
+    if(m_graphics.renderpass != VK_NULL_HANDLE)
     {
-        vkDestroyRenderPass(m_ctx.device, m_ctx.graphics.renderpass, nullptr);
+        vkDestroyRenderPass(m_device, m_graphics.renderpass, nullptr);
     }
-    for(auto& view : m_ctx.swapchainCtx.views)
+    for(auto& view : m_swapchain.views)
     {
-        vkDestroyImageView(m_ctx.device, view, nullptr);
+        vkDestroyImageView(m_device, view, nullptr);
     }
-    if(m_ctx.graphics.depth.view != VK_NULL_HANDLE)
+    if(m_graphics.depth.view != VK_NULL_HANDLE)
     {
-        vkDestroyImageView(m_ctx.device, m_ctx.graphics.depth.view, nullptr);
+        vkDestroyImageView(m_device, m_graphics.depth.view, nullptr);
     }
-    if(m_ctx.graphics.depth.image != VK_NULL_HANDLE)
+    if(m_graphics.depth.image != VK_NULL_HANDLE)
     {
-        vmaDestroyImage(m_ctx.allocator, m_ctx.graphics.depth.image, m_ctx.graphics.depth.memory);
-        //vkDestroyImage(m_ctx.device, m_ctx.graphics.depth.image, nullptr);
-        //vkFreeMemory(m_ctx.device, m_ctx.graphics.depth.memory, nullptr);
+        vmaDestroyImage(m_allocator, m_graphics.depth.image, m_graphics.depth.memory);
     }
 
-    if(m_ctx.swapchain != VK_NULL_HANDLE)
+    if(m_swapchain.swapchain != VK_NULL_HANDLE)
     {
-        vkDestroySwapchainKHR(m_ctx.device, m_ctx.swapchain, nullptr);
+        vkDestroySwapchainKHR(m_device, m_swapchain.swapchain, nullptr);
     }
 }
 
 void vkContext::recreateSwapchain()
 {
-    vkDeviceWaitIdle(m_ctx.device);
+    vkDeviceWaitIdle(m_device);
     cleanUpSwapchain();
 
     createSwapchain();
@@ -255,8 +291,8 @@ void vkContext::createInstance()
     createInfo.flags                = 0;
     createInfo.pApplicationInfo     = &appInfo;
 
-    const auto layers = m_DebugAndExtensions->getRequiredInstanceLayers();
-    if(m_DebugAndExtensions->isValidationLayersEnabled())
+    const auto layers = m_debugAndExtensions->getRequiredInstanceLayers();
+    if(m_debugAndExtensions->isValidationLayersEnabled())
     {
         createInfo.enabledLayerCount   = static_cast<uint32_t>(layers.size());
         createInfo.ppEnabledLayerNames = layers.data();
@@ -267,15 +303,15 @@ void vkContext::createInstance()
         createInfo.ppEnabledLayerNames = nullptr;
     }
 
-    const auto extensions              = m_DebugAndExtensions->getRequiredInstanceExtensions();
+    const auto extensions              = m_debugAndExtensions->getRequiredInstanceExtensions();
     createInfo.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
 
-    VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &m_Instance));
+    VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &m_instance));
 
     //spdlog::set_pattern("%^[%T] %n: %v%$﻿");
 
-    spdlog::info("vkInstance({}) created.", (uint64_t)m_Instance);
+    spdlog::info("vkInstance({}) created.", (uint64_t)m_instance);
     spdlog::info("Linked extensions:");
     for(const auto& e : extensions)
     {
@@ -292,13 +328,13 @@ void vkContext::createInstance()
 void vkContext::selectPhysicalDevice()
 {
     uint32_t physicalDeviceCount = 0;
-    vkEnumeratePhysicalDevices(m_Instance, &physicalDeviceCount, nullptr);
-    m_ctx.physicalDevices.resize(physicalDeviceCount);
-    vkEnumeratePhysicalDevices(m_Instance, &physicalDeviceCount, m_ctx.physicalDevices.data());
+    vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, nullptr);
+    m_gpu.physicalDevices.resize(physicalDeviceCount);
+    vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, m_gpu.physicalDevices.data());
 
     std::cout << "Found ( " << physicalDeviceCount << " ) GPUs supporting vulkan" << std::endl;
 
-    for(const auto& deviceCtx : m_ctx.physicalDevices)
+    for(const auto& deviceCtx : m_gpu.physicalDevices)
     {
         VkPhysicalDeviceProperties deviceProperties;
         vkGetPhysicalDeviceProperties(deviceCtx, &deviceProperties);
@@ -309,28 +345,28 @@ void vkContext::selectPhysicalDevice()
 
         uint32_t queueFamilyPropertyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(deviceCtx, &queueFamilyPropertyCount, nullptr);
-        m_ctx.gpu.queueFamilyProperties.resize(queueFamilyPropertyCount);
+        m_gpu.queueFamilyProperties.resize(queueFamilyPropertyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(deviceCtx, &queueFamilyPropertyCount,
-                                                 m_ctx.gpu.queueFamilyProperties.data());
+                                                 m_gpu.queueFamilyProperties.data());
 
         std::cout << std::endl;
         std::cout << "Found ( " << queueFamilyPropertyCount << " ) queue families" << std::endl;
         for(uint32_t i = 0; i < queueFamilyPropertyCount; ++i)
         {
             std::cout << "\tQueue family [" << i << "] supports following operations:" << std::endl;
-            if(m_ctx.gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
             {
                 std::cout << "\t\tVK_QUEUE_GRAPHICS_BIT" << std::endl;
             }
-            if(m_ctx.gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
             {
                 std::cout << "\t\tVK_QUEUE_COMPUTE_BIT" << std::endl;
             }
-            if(m_ctx.gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
+            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
             {
                 std::cout << "\t\tVK_QUEUE_TRANSFER_BIT" << std::endl;
             }
-            if(m_ctx.gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
+            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
             {
                 std::cout << "\t\tVK_QUEUE_SPARSE_BINDING_BIT" << std::endl;
             }
@@ -339,17 +375,17 @@ void vkContext::selectPhysicalDevice()
     }
 
     // TODO: check if GPU is discrete, just pick first one for now
-    m_ctx.gpu.physicalDevice = m_ctx.physicalDevices[0];
-    vkGetPhysicalDeviceProperties(m_ctx.gpu.physicalDevice, &m_ctx.gpu.properties);
-    vkGetPhysicalDeviceFeatures(m_ctx.gpu.physicalDevice, &m_ctx.gpu.features);
+    m_gpu.physicalDevice = m_gpu.physicalDevices[0];
+    vkGetPhysicalDeviceProperties(m_gpu.physicalDevice, &m_gpu.properties);
+    vkGetPhysicalDeviceFeatures(m_gpu.physicalDevice, &m_gpu.features);
 }
 
 void vkContext::createSurface()
 {
     VK_CHECK_RESULT(
-        glfwCreateWindowSurface(m_Instance, m_Window->getWindow(), nullptr, &m_ctx.surface));
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_ctx.gpu.physicalDevice, m_ctx.surface,
-                                              &m_ctx.surfaceCapabilities);
+        glfwCreateWindowSurface(m_instance, m_window->getWindow(), nullptr, &m_surface.surface));
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_gpu.physicalDevice, m_surface.surface,
+                                              &m_surface.surfaceCapabilities);
 }
 
 void vkContext::findQueueFamilyIndices()
@@ -357,14 +393,13 @@ void vkContext::findQueueFamilyIndices()
     // Search for first QueueFamily that provides supports requested queue operations.
     // Assume all GPUs support graphics and compute queues within same family.
     // TODO: Possibility to use separate graphics & compute queue
-    for(int i = 0; i < m_ctx.gpu.queueFamilyProperties.size(); ++i)
+    for(int i = 0; i < m_gpu.queueFamilyProperties.size(); ++i)
     {
-        const auto& queueFamilyProp = m_ctx.gpu.queueFamilyProperties[i];
+        const auto& queueFamilyProp = m_gpu.queueFamilyProperties[i];
         if(queueFamilyProp.queueCount > 0 && queueFamilyProp.queueFlags & VK_QUEUE_GRAPHICS_BIT
            && queueFamilyProp.queueFlags & VK_QUEUE_COMPUTE_BIT)
         {
-            m_ctx.queues.graphicsFamily = i;
-            m_ctx.queues.computeFamily  = i;
+            m_gpu.queueFamily = i;
         }
         else
         {
@@ -372,7 +407,7 @@ void vkContext::findQueueFamilyIndices()
         }
 
         VkBool32 presentSupport = VK_FALSE;
-        vkGetPhysicalDeviceSurfaceSupportKHR(m_ctx.gpu.physicalDevice, i, m_ctx.surface,
+        vkGetPhysicalDeviceSurfaceSupportKHR(m_gpu.physicalDevice, i, m_surface.surface,
                                              &presentSupport);
 
         if(presentSupport == VK_TRUE)
@@ -395,15 +430,14 @@ void vkContext::createLogicalDevice()
     queueInfo.pNext                   = nullptr;
     queueInfo.flags                   = 0;
 
-    // For now compute & graphics has same family
-    queueInfo.queueFamilyIndex = m_ctx.queues.graphicsFamily;
+    queueInfo.queueFamilyIndex = m_gpu.queueFamily;
     queueInfo.queueCount       = 1;
     queueInfo.pQueuePriorities = queuePriority;
 
     // Add requested features here
     VkPhysicalDeviceFeatures requestedDeviceFeatures = {};
 
-    const auto extensions = m_DebugAndExtensions->getRequiredDeviceExtensions();
+    const auto extensions = m_debugAndExtensions->getRequiredDeviceExtensions();
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType              = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -417,16 +451,15 @@ void vkContext::createLogicalDevice()
     createInfo.ppEnabledExtensionNames = extensions.data();
     createInfo.pEnabledFeatures        = &requestedDeviceFeatures;
 
-    VK_CHECK_RESULT(vkCreateDevice(m_ctx.gpu.physicalDevice, &createInfo, nullptr, &m_ctx.device));
+    VK_CHECK_RESULT(vkCreateDevice(m_gpu.physicalDevice, &createInfo, nullptr, &m_device));
 
-    vkGetDeviceQueue(m_ctx.device, m_ctx.queues.graphicsFamily, 0, &m_ctx.queues.graphicsQueue);
-    vkGetDeviceQueue(m_ctx.device, m_ctx.queues.computeFamily, 0, &m_ctx.queues.computeQueue);
+    vkGetDeviceQueue(m_device, m_gpu.queueFamily, 0, &m_queue);
 
     VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice         = m_ctx.gpu.physicalDevice;
-    allocatorInfo.device                 = m_ctx.device;
+    allocatorInfo.physicalDevice         = m_gpu.physicalDevice;
+    allocatorInfo.device                 = m_device;
 
-    VK_CHECK_RESULT(vmaCreateAllocator(&allocatorInfo, &m_ctx.allocator));
+    VK_CHECK_RESULT(vmaCreateAllocator(&allocatorInfo, &m_allocator));
 }
 
 void vkContext::createSynchronizationPrimitives()
@@ -435,41 +468,41 @@ void vkContext::createSynchronizationPrimitives()
     createInfo.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     createInfo.flags                 = 0;
 
-    VK_CHECK_RESULT(vkCreateSemaphore(m_ctx.device, &createInfo, nullptr,
-                                      &m_ctx.graphics.imageAvailableSemaphore));
-    VK_CHECK_RESULT(vkCreateSemaphore(m_ctx.device, &createInfo, nullptr,
-                                      &m_ctx.graphics.renderingFinishedSemaphore));
+    VK_CHECK_RESULT(
+        vkCreateSemaphore(m_device, &createInfo, nullptr, &m_graphics.imageAvailableSemaphore));
+    VK_CHECK_RESULT(
+        vkCreateSemaphore(m_device, &createInfo, nullptr, &m_graphics.renderingFinishedSemaphore));
 }
 
 void vkContext::createSwapchain()
 {
     uint32_t presentModeCount = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(m_ctx.gpu.physicalDevice, m_ctx.surface,
+    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.physicalDevice, m_surface.surface,
                                               &presentModeCount, nullptr);
-    m_ctx.swapchainCtx.presentModeList.resize(presentModeCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(m_ctx.gpu.physicalDevice, m_ctx.surface,
+    m_swapchain.presentModeList.resize(presentModeCount);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.physicalDevice, m_surface.surface,
                                               &presentModeCount,
-                                              m_ctx.swapchainCtx.presentModeList.data());
+                                              m_swapchain.presentModeList.data());
 
     uint32_t formatCount = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(m_ctx.gpu.physicalDevice, m_ctx.surface, &formatCount,
+    vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.physicalDevice, m_surface.surface, &formatCount,
                                          nullptr);
-    m_ctx.swapchainCtx.surfaceFormatList.resize(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(m_ctx.gpu.physicalDevice, m_ctx.surface, &formatCount,
-                                         m_ctx.swapchainCtx.surfaceFormatList.data());
+    m_swapchain.surfaceFormatList.resize(formatCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.physicalDevice, m_surface.surface, &formatCount,
+                                         m_swapchain.surfaceFormatList.data());
 
-    uint32_t minImageCount = m_ctx.surfaceCapabilities.minImageCount;
+    uint32_t minImageCount = m_surface.surfaceCapabilities.minImageCount;
 
-    m_ctx.surfaceFormat       = m_ctx.swapchainCtx.surfaceFormatList[0];
-    m_ctx.swapchainCtx.extent = m_Window->getWindowSize();
+    m_surface.surfaceFormat = m_swapchain.surfaceFormatList[0];
+    m_swapchain.extent      = m_window->getWindowSize();
 
     // Need to update surfacecapabilities if swapchain is recreated
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_ctx.gpu.physicalDevice, m_ctx.surface,
-                                              &m_ctx.surfaceCapabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_gpu.physicalDevice, m_surface.surface,
+                                              &m_surface.surfaceCapabilities);
 
     // FIFO is guaranteed by spec
-    m_ctx.swapchainCtx.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    for(const auto& mode : m_ctx.swapchainCtx.presentModeList)
+    m_swapchain.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    for(const auto& mode : m_swapchain.presentModeList)
     {
         (void)mode;
         /* Comment out for now to limit GPU usage, no need to constantly update between vertical blanks */
@@ -482,7 +515,7 @@ void vkContext::createSwapchain()
     }
 
     VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if(m_ctx.surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+    if(m_surface.surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
     {
         usageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
@@ -490,39 +523,39 @@ void vkContext::createSwapchain()
     VkSwapchainCreateInfoKHR createInfo = {};
     createInfo.sType                    = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.flags;
-    createInfo.surface               = m_ctx.surface;
+    createInfo.surface               = m_surface.surface;
     createInfo.minImageCount         = minImageCount;
-    createInfo.imageFormat           = m_ctx.surfaceFormat.format;
-    createInfo.imageColorSpace       = m_ctx.surfaceFormat.colorSpace;
-    createInfo.imageExtent           = m_ctx.swapchainCtx.extent;
+    createInfo.imageFormat           = m_surface.surfaceFormat.format;
+    createInfo.imageColorSpace       = m_surface.surfaceFormat.colorSpace;
+    createInfo.imageExtent           = m_swapchain.extent;
     createInfo.imageArrayLayers      = 1;
     createInfo.imageUsage            = usageFlags;
     createInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.queueFamilyIndexCount = 1;
     createInfo.pQueueFamilyIndices   = nullptr;
-    createInfo.preTransform          = m_ctx.surfaceCapabilities.currentTransform;
+    createInfo.preTransform          = m_surface.surfaceCapabilities.currentTransform;
     createInfo.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode           = m_ctx.swapchainCtx.presentMode;
+    createInfo.presentMode           = m_swapchain.presentMode;
     createInfo.clipped               = VK_TRUE;
     createInfo.oldSwapchain          = VK_NULL_HANDLE;
 
-    VK_CHECK_RESULT(vkCreateSwapchainKHR(m_ctx.device, &createInfo, nullptr, &m_ctx.swapchain));
+    VK_CHECK_RESULT(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain.swapchain));
 
     // Get handles for swapchain images
     uint32_t imageCount = 0;
-    vkGetSwapchainImagesKHR(m_ctx.device, m_ctx.swapchain, &imageCount, nullptr);
-    m_ctx.swapchainCtx.images.resize(imageCount);
-    vkGetSwapchainImagesKHR(m_ctx.device, m_ctx.swapchain, &imageCount,
-                            m_ctx.swapchainCtx.images.data());
-    m_ctx.swapchainCtx.imageFormat = m_ctx.surfaceFormat.format;
+    vkGetSwapchainImagesKHR(m_device, m_swapchain.swapchain, &imageCount, nullptr);
+    m_swapchain.images.resize(imageCount);
+    vkGetSwapchainImagesKHR(m_device, m_swapchain.swapchain, &imageCount,
+                            m_swapchain.images.data());
+    m_swapchain.imageFormat = m_surface.surfaceFormat.format;
 
     // Image views
-    m_ctx.swapchainCtx.views.resize(imageCount);
+    m_swapchain.views.resize(imageCount);
     for(uint32_t i = 0; i < imageCount; ++i)
     {
-        m_ctx.swapchainCtx.views[i] =
-            VkTools::createImageView(&m_ctx, m_ctx.swapchainCtx.images[i],
-                                     m_ctx.swapchainCtx.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        m_swapchain.views[i] =
+            VkTools::createImageView(m_device, m_swapchain.images[i], m_swapchain.imageFormat,
+                                     VK_IMAGE_ASPECT_COLOR_BIT);
     }
 }
 
@@ -531,26 +564,25 @@ void vkContext::createCommandPools()
     VkCommandPoolCreateInfo createInfo = {};
     createInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     createInfo.flags                   = 0;
-    createInfo.queueFamilyIndex        = m_ctx.queues.graphicsFamily;
+    createInfo.queueFamilyIndex        = m_gpu.queueFamily;
 
-    VK_CHECK_RESULT(
-        vkCreateCommandPool(m_ctx.device, &createInfo, nullptr, &m_ctx.graphics.commandPool));
+    VK_CHECK_RESULT(vkCreateCommandPool(m_device, &createInfo, nullptr, &m_graphics.commandPool));
 }
 
 void vkContext::createCommandBuffers()
 {
-    m_ctx.swapchainCtx.commandBuffers.resize(m_ctx.swapchainCtx.frameBuffers.size());
+    m_swapchain.commandBuffers.resize(m_swapchain.frameBuffers.size());
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool                 = m_ctx.graphics.commandPool;
+    allocInfo.commandPool                 = m_graphics.commandPool;
     allocInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = static_cast<uint32_t>(m_ctx.swapchainCtx.commandBuffers.size());
+    allocInfo.commandBufferCount = static_cast<uint32_t>(m_swapchain.commandBuffers.size());
 
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(m_ctx.device, &allocInfo,
-                                             m_ctx.swapchainCtx.commandBuffers.data()));
+    VK_CHECK_RESULT(
+        vkAllocateCommandBuffers(m_device, &allocInfo, m_swapchain.commandBuffers.data()));
 
-    m_rtCommandBuffers.resize(m_ctx.swapchainCtx.frameBuffers.size());
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(m_ctx.device, &allocInfo, m_rtCommandBuffers.data()));
+    m_rtCommandBuffers.resize(m_swapchain.frameBuffers.size());
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(m_device, &allocInfo, m_rtCommandBuffers.data()));
 }
 
 void vkContext::createDepthResources()
@@ -560,9 +592,9 @@ void vkContext::createDepthResources()
     imageInfo.pNext             = nullptr;
     imageInfo.flags             = 0;
     imageInfo.imageType         = VK_IMAGE_TYPE_2D;
-    imageInfo.format            = m_ctx.graphics.depth.format;
-    imageInfo.extent.width      = m_Window->getWindowSize().width;
-    imageInfo.extent.height     = m_Window->getWindowSize().height;
+    imageInfo.format            = m_graphics.depth.format;
+    imageInfo.extent.width      = m_window->getWindowSize().width;
+    imageInfo.extent.height     = m_window->getWindowSize().height;
     imageInfo.extent.depth      = 1;
     imageInfo.mipLevels         = 1;
     imageInfo.arrayLayers       = 1;
@@ -577,11 +609,11 @@ void vkContext::createDepthResources()
     VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage                   = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    vmaCreateImage(m_ctx.allocator, &imageInfo, &allocInfo, &m_ctx.graphics.depth.image,
-                   &m_ctx.graphics.depth.memory, nullptr);
+    vmaCreateImage(m_allocator, &imageInfo, &allocInfo, &m_graphics.depth.image,
+                   &m_graphics.depth.memory, nullptr);
 
-    m_ctx.graphics.depth.view =
-        VkTools::createImageView(&m_ctx, m_ctx.graphics.depth.image, m_ctx.graphics.depth.format,
+    m_graphics.depth.view =
+        VkTools::createImageView(m_device, m_graphics.depth.image, m_graphics.depth.format,
                                  VK_IMAGE_ASPECT_DEPTH_BIT);
 
     VkImageMemoryBarrier barrier = {};
@@ -593,16 +625,16 @@ void vkContext::createDepthResources()
     barrier.newLayout            = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     barrier.srcQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image                = m_ctx.graphics.depth.image;
+    barrier.image                = m_graphics.depth.image;
     barrier.subresourceRange     = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
 
-    VkCommandBuffer commandBuffer = VkTools::beginSingleTimeCommands(&m_ctx);
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0, 0, nullptr, 0, nullptr, 1,
                          &barrier);
 
-    VkTools::endSingleTimeCommands(&m_ctx, commandBuffer);
+    endSingleTimeCommands(commandBuffer);
 }
 
 void vkContext::createRenderPass()
@@ -610,7 +642,7 @@ void vkContext::createRenderPass()
     std::array<VkAttachmentDescription, 2> attachments = {};
 
     attachments[0].flags;
-    attachments[0].format         = m_ctx.swapchainCtx.imageFormat;
+    attachments[0].format         = m_swapchain.imageFormat;
     attachments[0].samples        = VK_SAMPLE_COUNT_1_BIT;
     attachments[0].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachments[0].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -620,7 +652,7 @@ void vkContext::createRenderPass()
     attachments[0].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     attachments[1].flags;
-    attachments[1].format         = m_ctx.graphics.depth.format;
+    attachments[1].format         = m_graphics.depth.format;
     attachments[1].samples        = VK_SAMPLE_COUNT_1_BIT;
     attachments[1].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachments[1].storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -640,9 +672,9 @@ void vkContext::createRenderPass()
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &references[0];  // [0] in this array corresponds
-                                                    // to layout(location = 0) out vec4 in
-                                                    //fragment shader
+    subpass.pColorAttachments    = &references[0];
+
+
     //subpass.pDepthStencilAttachment = nullptr;
     subpass.pDepthStencilAttachment = &references[1];
 
@@ -667,56 +699,54 @@ void vkContext::createRenderPass()
 
     VkRenderPassCreateInfo renderpassInfo = {};
     renderpassInfo.sType                  = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    //renderpassInfo.attachmentCount        = 1;
-    renderpassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-    renderpassInfo.pAttachments    = attachments.data();
-    renderpassInfo.subpassCount    = 1;
-    renderpassInfo.pSubpasses      = &subpass;
-    renderpassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
-    renderpassInfo.pDependencies   = dependencies.data();
+    renderpassInfo.attachmentCount        = static_cast<uint32_t>(attachments.size());
+    renderpassInfo.pAttachments           = attachments.data();
+    renderpassInfo.subpassCount           = 1;
+    renderpassInfo.pSubpasses             = &subpass;
+    renderpassInfo.dependencyCount        = static_cast<uint32_t>(dependencies.size());
+    renderpassInfo.pDependencies          = dependencies.data();
 
-    VK_CHECK_RESULT(
-        vkCreateRenderPass(m_ctx.device, &renderpassInfo, nullptr, &m_ctx.graphics.renderpass));
+    VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_graphics.renderpass));
 }
 
 void vkContext::createFrameBuffers()
 {
-    m_ctx.swapchainCtx.frameBuffers.resize(m_ctx.swapchainCtx.images.size());
+    m_swapchain.frameBuffers.resize(m_swapchain.images.size());
 
-    for(uint32_t i = 0; i < m_ctx.swapchainCtx.frameBuffers.size(); ++i)
+    for(uint32_t i = 0; i < m_swapchain.frameBuffers.size(); ++i)
     {
-        std::array<VkImageView, 2> attachments = {m_ctx.swapchainCtx.views[i],
-                                                  m_ctx.graphics.depth.view};
+        std::array<VkImageView, 2> attachments = {m_swapchain.views[i], m_graphics.depth.view};
 
         VkFramebufferCreateInfo createInfo = {};
         createInfo.sType                   = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        createInfo.renderPass              = m_ctx.graphics.renderpass;
+        createInfo.renderPass              = m_graphics.renderpass;
         createInfo.attachmentCount         = static_cast<uint32_t>(attachments.size());
         createInfo.pAttachments            = attachments.data();
-        createInfo.width                   = m_ctx.swapchainCtx.extent.width;
-        createInfo.height                  = m_ctx.swapchainCtx.extent.height;
+        createInfo.width                   = m_swapchain.extent.width;
+        createInfo.height                  = m_swapchain.extent.height;
         createInfo.layers                  = 1;
 
-        VK_CHECK_RESULT(vkCreateFramebuffer(m_ctx.device, &createInfo, nullptr,
-                                            &m_ctx.swapchainCtx.frameBuffers[i]));
+        VK_CHECK_RESULT(
+            vkCreateFramebuffer(m_device, &createInfo, nullptr, &m_swapchain.frameBuffers[i]));
     }
 }
 
 void vkContext::createUniformBuffers()
 {
-    VkDeviceSize bufferSize = sizeof(VkTools::graphicsUBO);
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-    m_ctx.graphics.uniformBuffers.resize(m_ctx.swapchainCtx.images.size());
-    m_ctx.graphics.uniformBufferAllocations.resize(m_ctx.swapchainCtx.images.size());
+    m_graphics.uniformBuffers.resize(m_swapchain.images.size());
+    m_graphics.uniformBufferAllocations.resize(m_swapchain.images.size());
 
-    for(size_t i = 0; i < m_ctx.swapchainCtx.images.size(); ++i)
+    for(size_t i = 0; i < m_swapchain.images.size(); ++i)
     {
-        auto& buffer = m_ctx.graphics.uniformBuffers[i];
-        auto& memory = m_ctx.graphics.uniformBufferAllocations[i];
-        VkTools::createBuffer(
-            &m_ctx, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer,
-            memory);
+        auto& buffer = m_graphics.uniformBuffers[i];
+        auto& memory = m_graphics.uniformBufferAllocations[i];
+        VkTools::createBuffer(m_allocator, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                              VMA_MEMORY_USAGE_CPU_TO_GPU,
+                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                                  | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                              buffer, memory);
     }
 }
 
@@ -728,12 +758,11 @@ void vkContext::updateGraphicsUniforms()
     float time =
         std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    float aspect =
-        m_ctx.swapchainCtx.extent.width / static_cast<float>(m_ctx.swapchainCtx.extent.height);
+    float aspect = m_swapchain.extent.width / static_cast<float>(m_swapchain.extent.height);
 
     float fov = 45.0f;
 
-    VkTools::graphicsUBO ubo;
+    UniformBufferObject ubo;
     ubo.model =
         glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0, 1.0f));
     ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
@@ -745,9 +774,9 @@ void vkContext::updateGraphicsUniforms()
     ubo.projInverse = glm::inverse(ubo.proj);
 
     void* data;
-    vmaMapMemory(m_ctx.allocator, m_ctx.graphics.uniformBufferAllocations[m_currentImage], &data);
+    vmaMapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage], &data);
     memcpy(data, &ubo, sizeof(ubo));
-    vmaUnmapMemory(m_ctx.allocator, m_ctx.graphics.uniformBufferAllocations[m_currentImage]);
+    vmaUnmapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage]);
 }
 
 void vkContext::createImage(VkExtent2D               extent,
@@ -767,8 +796,8 @@ void vkContext::createImage(VkExtent2D               extent,
 
 void vkContext::createPipeline()
 {
-    auto vertexShader   = VkTools::createShaderModule("../../shaders/vertshader.spv", m_ctx.device);
-    auto fragmentShader = VkTools::createShaderModule("../../shaders/fragshader.spv", m_ctx.device);
+    auto vertexShader   = VkTools::createShaderModule("../../shaders/vertshader.spv", m_device);
+    auto fragmentShader = VkTools::createShaderModule("../../shaders/fragshader.spv", m_device);
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
     vertexShaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -805,14 +834,14 @@ void vkContext::createPipeline()
     VkViewport viewport = {};
     viewport.x          = 0.0f;
     viewport.y          = 0.0f;
-    viewport.width      = static_cast<float>(m_ctx.swapchainCtx.extent.width);
-    viewport.height     = static_cast<float>(m_ctx.swapchainCtx.extent.height);
+    viewport.width      = static_cast<float>(m_swapchain.extent.width);
+    viewport.height     = static_cast<float>(m_swapchain.extent.height);
     viewport.minDepth   = 0.0f;
     viewport.maxDepth   = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset   = {0, 0};
-    scissor.extent   = {m_ctx.swapchainCtx.extent.width, m_ctx.swapchainCtx.extent.height};
+    scissor.extent   = {m_swapchain.extent.width, m_swapchain.extent.height};
 
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -882,12 +911,12 @@ void vkContext::createPipeline()
     pipelineLayoutInfo.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.flags;
     pipelineLayoutInfo.setLayoutCount         = 1;
-    pipelineLayoutInfo.pSetLayouts            = &m_ctx.graphics.descriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts            = &m_graphics.descriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges    = nullptr;
 
-    VK_CHECK_RESULT(vkCreatePipelineLayout(m_ctx.device, &pipelineLayoutInfo, nullptr,
-                                           &m_ctx.graphics.pipelineLayout));
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_graphics.pipelineLayout));
 
     VkGraphicsPipelineCreateInfo pipelineInfo = {};
     pipelineInfo.sType                        = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -902,17 +931,17 @@ void vkContext::createPipeline()
     pipelineInfo.pDepthStencilState           = &depthInfo;
     pipelineInfo.pColorBlendState             = &colorBlending;
     pipelineInfo.pDynamicState                = nullptr;
-    pipelineInfo.layout                       = m_ctx.graphics.pipelineLayout;
-    pipelineInfo.renderPass                   = m_ctx.graphics.renderpass;
+    pipelineInfo.layout                       = m_graphics.pipelineLayout;
+    pipelineInfo.renderPass                   = m_graphics.renderpass;
     pipelineInfo.subpass                      = 0;
     pipelineInfo.basePipelineHandle           = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex            = -1;
 
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                              nullptr, &m_ctx.graphics.pipeline));
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                              &m_graphics.pipeline));
 
-    vkDestroyShaderModule(m_ctx.device, vertexShader, nullptr);
-    vkDestroyShaderModule(m_ctx.device, fragmentShader, nullptr);
+    vkDestroyShaderModule(m_device, vertexShader, nullptr);
+    vkDestroyShaderModule(m_device, fragmentShader, nullptr);
 }
 
 void vkContext::createDescriptorPool()
@@ -921,19 +950,19 @@ void vkContext::createDescriptorPool()
 
     // UBO
     poolSizes[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(m_ctx.swapchainCtx.frameBuffers.size());
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
 
     VkDescriptorPoolCreateInfo poolInfo = {};
 
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.pNext         = nullptr;
     poolInfo.flags         = 0;
-    poolInfo.maxSets       = static_cast<uint32_t>(m_ctx.swapchainCtx.frameBuffers.size());
+    poolInfo.maxSets       = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes    = poolSizes.data();
 
     VK_CHECK_RESULT(
-        vkCreateDescriptorPool(m_ctx.device, &poolInfo, nullptr, &m_ctx.graphics.descriptorPool));
+        vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_graphics.descriptorPool));
 }
 
 void vkContext::setupGraphicsDescriptors()
@@ -953,36 +982,36 @@ void vkContext::setupGraphicsDescriptors()
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings    = bindings.data();
 
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_ctx.device, &layoutInfo, nullptr,
-                                                &m_ctx.graphics.descriptorSetLayout));
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr,
+                                                &m_graphics.descriptorSetLayout));
 
 
-    std::vector<VkDescriptorSetLayout> layouts(m_ctx.swapchainCtx.images.size(),
-                                               m_ctx.graphics.descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(m_swapchain.images.size(),
+                                               m_graphics.descriptorSetLayout);
 
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.pNext                       = nullptr;
-    allocInfo.descriptorPool              = m_ctx.graphics.descriptorPool;
-    allocInfo.descriptorSetCount          = static_cast<uint32_t>(m_ctx.swapchainCtx.images.size());
+    allocInfo.descriptorPool              = m_graphics.descriptorPool;
+    allocInfo.descriptorSetCount          = static_cast<uint32_t>(m_swapchain.images.size());
     allocInfo.pSetLayouts                 = layouts.data();
 
-    m_ctx.graphics.descriptorSets.resize(m_ctx.swapchainCtx.images.size());
+    m_graphics.descriptorSets.resize(m_swapchain.images.size());
 
     VK_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_ctx.device, &allocInfo, m_ctx.graphics.descriptorSets.data()));
+        vkAllocateDescriptorSets(m_device, &allocInfo, m_graphics.descriptorSets.data()));
 
-    for(size_t i = 0; i < m_ctx.swapchainCtx.images.size(); ++i)
+    for(size_t i = 0; i < m_swapchain.images.size(); ++i)
     {
         VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer                 = m_ctx.graphics.uniformBuffers[i];
+        bufferInfo.buffer                 = m_graphics.uniformBuffers[i];
         bufferInfo.offset                 = 0;
-        bufferInfo.range                  = sizeof(VkTools::graphicsUBO);
+        bufferInfo.range                  = sizeof(UniformBufferObject);
 
         VkWriteDescriptorSet descriptorWrite = {};
         descriptorWrite.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrite.pNext                = nullptr;
-        descriptorWrite.dstSet               = m_ctx.graphics.descriptorSets[i];
+        descriptorWrite.dstSet               = m_graphics.descriptorSets[i];
         descriptorWrite.dstBinding           = 0;
         descriptorWrite.dstArrayElement      = 0;
         descriptorWrite.descriptorCount      = 1;
@@ -991,7 +1020,7 @@ void vkContext::setupGraphicsDescriptors()
         descriptorWrite.pBufferInfo          = &bufferInfo;
         descriptorWrite.pTexelBufferView     = nullptr;
 
-        vkUpdateDescriptorSets(m_ctx.device, 1, &descriptorWrite, 0, nullptr);
+        vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
     }
 }
 
@@ -1007,9 +1036,9 @@ void vkContext::recordCommandBuffers()
 
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType                 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass            = m_ctx.graphics.renderpass;
+    renderPassInfo.renderPass            = m_graphics.renderpass;
     renderPassInfo.renderArea.offset     = {0, 0};
-    renderPassInfo.renderArea.extent     = m_ctx.swapchainCtx.extent;
+    renderPassInfo.renderArea.extent     = m_swapchain.extent;
     renderPassInfo.clearValueCount       = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues          = clearValues.data();
 
@@ -1035,26 +1064,25 @@ void vkContext::recordCommandBuffers()
     VkDeviceSize offsets[]       = {0};
     VkBuffer     vertexBuffers[] = {m_VertexData.vertexBuffer};
 
-    for(uint32_t i = 0; i < m_ctx.swapchainCtx.frameBuffers.size(); ++i)
+    for(uint32_t i = 0; i < m_swapchain.frameBuffers.size(); ++i)
     {
         {
-            const VkCommandBuffer commandBuffer = m_ctx.swapchainCtx.commandBuffers[i];
-            renderPassInfo.framebuffer          = m_ctx.swapchainCtx.frameBuffers[i];
+            const VkCommandBuffer commandBuffer = m_swapchain.commandBuffers[i];
+            renderPassInfo.framebuffer          = m_swapchain.frameBuffers[i];
 
             vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              m_ctx.graphics.pipeline);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
 
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
             vkCmdBindIndexBuffer(commandBuffer, m_VertexData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_ctx.graphics.pipelineLayout, 0, 1,
-                                    &m_ctx.graphics.descriptorSets[i], 0, nullptr);
+                                    m_graphics.pipelineLayout, 0, 1, &m_graphics.descriptorSets[i],
+                                    0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -1065,18 +1093,18 @@ void vkContext::recordCommandBuffers()
         // NVRTX --------
         {
             const VkCommandBuffer commandBuffer = m_rtCommandBuffers[i];
-            renderPassInfo.framebuffer          = m_ctx.swapchainCtx.frameBuffers[i];
+            renderPassInfo.framebuffer          = m_swapchain.frameBuffers[i];
 
             vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 
-            imageMemoryBarrier.image = m_ctx.swapchainCtx.images[i];
+            imageMemoryBarrier.image = m_swapchain.images[i];
 
             vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                                  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                  &imageMemoryBarrier);
 
-            updateRaytracingRenderTarget(m_ctx.swapchainCtx.views[i]);
+            updateRaytracingRenderTarget(m_swapchain.views[i]);
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1093,8 +1121,8 @@ void vkContext::recordCommandBuffers()
 
             vkCmdTraceRaysNV(commandBuffer, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset,
                              missStride, m_sbtBuffer, hitGroupOffset, hitGroupStride,
-                             VK_NULL_HANDLE, 0, 0, m_ctx.swapchainCtx.extent.width,
-                             m_ctx.swapchainCtx.extent.height, 1);
+                             VK_NULL_HANDLE, 0, 0, m_swapchain.extent.width,
+                             m_swapchain.extent.height, 1);
 
             vkCmdEndRenderPass(commandBuffer);
 
@@ -1111,49 +1139,49 @@ void vkContext::createVertexAndIndexBuffers()
     // Vertices
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
     VkTools::createBuffer(
-        &m_ctx, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
+        m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
         stagingBufferMemory);
 
     void* data;
-    vmaMapMemory(m_ctx.allocator, stagingBufferMemory, &data);
+    vmaMapMemory(m_allocator, stagingBufferMemory, &data);
     memcpy(data, vertices.data(), bufferSize);
-    vmaUnmapMemory(m_ctx.allocator, stagingBufferMemory);
+    vmaUnmapMemory(m_allocator, stagingBufferMemory);
 
-    VkTools::createBuffer(&m_ctx, bufferSize,
+    VkTools::createBuffer(m_allocator, bufferSize,
                           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           m_VertexData.vertexBuffer, m_VertexData.vertexBufferMemory);
 
     copyBuffer(stagingBuffer, m_VertexData.vertexBuffer, bufferSize);
 
-    vmaDestroyBuffer(m_ctx.allocator, stagingBuffer, stagingBufferMemory);
+    vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 
 
     // Indices
     bufferSize = sizeof(indices[0]) * indices.size();
     VkTools::createBuffer(
-        &m_ctx, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
+        m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
         stagingBufferMemory);
 
-    vmaMapMemory(m_ctx.allocator, stagingBufferMemory, &data);
+    vmaMapMemory(m_allocator, stagingBufferMemory, &data);
     memcpy(data, indices.data(), bufferSize);
-    vmaUnmapMemory(m_ctx.allocator, stagingBufferMemory);
+    vmaUnmapMemory(m_allocator, stagingBufferMemory);
 
-    VkTools::createBuffer(&m_ctx, bufferSize,
+    VkTools::createBuffer(m_allocator, bufferSize,
                           VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           m_VertexData.indexBuffer, m_VertexData.indexBufferMemory);
 
     copyBuffer(stagingBuffer, m_VertexData.indexBuffer, bufferSize);
 
-    vmaDestroyBuffer(m_ctx.allocator, stagingBuffer, stagingBufferMemory);
+    vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 }
 
 void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-    VkCommandBuffer commandBuffer = VkTools::beginSingleTimeCommands(&m_ctx);
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
     VkBufferCopy copyRegion = {};
     copyRegion.srcOffset    = 0;
@@ -1162,7 +1190,42 @@ void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize 
 
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-    endSingleTimeCommands(&m_ctx, commandBuffer);
+    endSingleTimeCommands(commandBuffer);
+}
+
+VkCommandBuffer vkContext::beginSingleTimeCommands()
+{
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool                 = m_graphics.commandPool;
+    allocateInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount          = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void vkContext::endSingleTimeCommands(VkCommandBuffer commandBuffer)
+{
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo       = {};
+    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers    = &commandBuffer;
+
+    vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_queue);
+
+    vkFreeCommandBuffers(m_device, m_graphics.commandPool, 1, &commandBuffer);
 }
 
 void vkContext::initRaytracing()
@@ -1183,7 +1246,7 @@ void vkContext::initRaytracing()
     properties.pNext                       = &m_RaytracingProperties;
     properties.properties                  = {};
 
-    vkGetPhysicalDeviceProperties2(m_ctx.gpu.physicalDevice, &properties);
+    vkGetPhysicalDeviceProperties2(m_gpu.physicalDevice, &properties);
 }
 
 void vkContext::createGeometryInstances()
@@ -1222,23 +1285,25 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     }
 
     AccelerationStructure buffers;
-    buffers.structure = bottomLevelAS.createAccelerationStructure(m_ctx.device, VK_FALSE);
+    buffers.structure = bottomLevelAS.createAccelerationStructure(m_device, VK_FALSE);
 
     VkDeviceSize scratchBufferSize = 0;
     VkDeviceSize resultBufferSize  = 0;
 
-    bottomLevelAS.computeASBufferSizes(m_ctx.device, buffers.structure, &scratchBufferSize,
+    bottomLevelAS.computeASBufferSizes(m_device, buffers.structure, &scratchBufferSize,
                                        &resultBufferSize);
 
-    VkTools::createBufferNoVMA(&m_ctx, scratchBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+    VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, scratchBufferSize,
+                               VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffers.scratchBuffer,
                                &buffers.scratchMemory);
 
-    VkTools::createBufferNoVMA(&m_ctx, resultBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+    VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, resultBufferSize,
+                               VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffers.resultBuffer,
                                &buffers.resultMemory);
 
-    bottomLevelAS.generate(m_ctx.device, commandBuffer, buffers.structure, buffers.scratchBuffer, 0,
+    bottomLevelAS.generate(m_device, commandBuffer, buffers.structure, buffers.scratchBuffer, 0,
                            buffers.resultBuffer, buffers.resultMemory, VK_FALSE, VK_NULL_HANDLE);
 
     return buffers;
@@ -1259,31 +1324,33 @@ void vkContext::createTopLevelAS(
         }
 
         m_TopLevelAS.structure =
-            m_TopLevelASGenerator.createAccelerationStructure(m_ctx.device, VK_TRUE);
+            m_TopLevelASGenerator.createAccelerationStructure(m_device, VK_TRUE);
 
 
         VkDeviceSize scratchBufferSize;
         VkDeviceSize resultBufferSize;
         VkDeviceSize instancesBufferSize;
-        m_TopLevelASGenerator.computeASBufferSizes(m_ctx.device, m_TopLevelAS.structure,
+        m_TopLevelASGenerator.computeASBufferSizes(m_device, m_TopLevelAS.structure,
                                                    &scratchBufferSize, &resultBufferSize,
                                                    &instancesBufferSize);
 
-        VkTools::createBufferNoVMA(&m_ctx, scratchBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+        VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, scratchBufferSize,
+                                   VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_TopLevelAS.scratchBuffer,
                                    &m_TopLevelAS.scratchMemory);
 
-        VkTools::createBufferNoVMA(&m_ctx, resultBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+        VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, resultBufferSize,
+                                   VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_TopLevelAS.resultBuffer,
                                    &m_TopLevelAS.resultMemory);
 
-        VkTools::createBufferNoVMA(&m_ctx, instancesBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
-                                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-                                       | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                   &m_TopLevelAS.instancesBuffer, &m_TopLevelAS.instancesMemory);
+        VkTools::createBufferNoVMA(
+            m_device, m_gpu.physicalDevice, instancesBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+            &m_TopLevelAS.instancesBuffer, &m_TopLevelAS.instancesMemory);
     }
 
-    m_TopLevelASGenerator.generate(m_ctx.device, commandBuffer, m_TopLevelAS.structure,
+    m_TopLevelASGenerator.generate(m_device, commandBuffer, m_TopLevelAS.structure,
                                    m_TopLevelAS.scratchBuffer, 0, m_TopLevelAS.resultBuffer,
                                    m_TopLevelAS.resultMemory, m_TopLevelAS.instancesBuffer,
                                    m_TopLevelAS.instancesMemory, updateOnly,
@@ -1293,7 +1360,7 @@ void vkContext::createTopLevelAS(
 void vkContext::createAccelerationStructures()
 {
 
-    VkCommandBuffer commandBuffer = VkTools::beginSingleTimeCommands(&m_ctx);
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
     m_BottomLevelAS.resize(m_GeometryInstances.size());
 
     std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>> instances;
@@ -1312,38 +1379,38 @@ void vkContext::createAccelerationStructures()
 
     createTopLevelAS(commandBuffer, instances, VK_FALSE);
 
-    VkTools::endSingleTimeCommands(&m_ctx, commandBuffer);
+    endSingleTimeCommands(commandBuffer);
 }
 
 void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
 {
     if(as.scratchBuffer != VK_NULL_HANDLE)
     {
-        vkDestroyBuffer(m_ctx.device, as.scratchBuffer, nullptr);
+        vkDestroyBuffer(m_device, as.scratchBuffer, nullptr);
     }
     if(as.scratchMemory != VK_NULL_HANDLE)
     {
-        vkFreeMemory(m_ctx.device, as.scratchMemory, nullptr);
+        vkFreeMemory(m_device, as.scratchMemory, nullptr);
     }
     if(as.resultBuffer != VK_NULL_HANDLE)
     {
-        vkDestroyBuffer(m_ctx.device, as.resultBuffer, nullptr);
+        vkDestroyBuffer(m_device, as.resultBuffer, nullptr);
     }
     if(as.resultMemory != VK_NULL_HANDLE)
     {
-        vkFreeMemory(m_ctx.device, as.resultMemory, nullptr);
+        vkFreeMemory(m_device, as.resultMemory, nullptr);
     }
     if(as.instancesBuffer != VK_NULL_HANDLE)
     {
-        vkDestroyBuffer(m_ctx.device, as.instancesBuffer, nullptr);
+        vkDestroyBuffer(m_device, as.instancesBuffer, nullptr);
     }
     if(as.instancesMemory != VK_NULL_HANDLE)
     {
-        vkFreeMemory(m_ctx.device, as.instancesMemory, nullptr);
+        vkFreeMemory(m_device, as.instancesMemory, nullptr);
     }
     if(as.structure != VK_NULL_HANDLE)
     {
-        vkDestroyAccelerationStructureNV(m_ctx.device, as.structure, nullptr);
+        vkDestroyAccelerationStructureNV(m_device, as.structure, nullptr);
     }
 }
 
@@ -1360,7 +1427,7 @@ void vkContext::createRaytracingDescriptorSet()
     barrier.offset                = 0;
     barrier.size                  = VK_WHOLE_SIZE;
 
-    VkCommandBuffer commandBuffer = VkTools::beginSingleTimeCommands(&m_ctx);
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
     barrier.buffer = m_VertexData.vertexBuffer;
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -1372,7 +1439,7 @@ void vkContext::createRaytracingDescriptorSet()
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0,
                          nullptr);
 
-    VkTools::endSingleTimeCommands(&m_ctx, commandBuffer);
+    endSingleTimeCommands(commandBuffer);
 
     // Acceleration structure
     m_rtDSG.addBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
@@ -1398,11 +1465,10 @@ void vkContext::createRaytracingDescriptorSet()
     //                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     //                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
-    m_rtDescriptorPool      = m_rtDSG.generatePool(m_ctx.device);
-    m_rtDescriptorSetLayout = m_rtDSG.generateLayout(m_ctx.device);
+    m_rtDescriptorPool      = m_rtDSG.generatePool(m_device);
+    m_rtDescriptorSetLayout = m_rtDSG.generateLayout(m_device);
 
-    m_rtDescriptorSet =
-        m_rtDSG.generateSet(m_ctx.device, m_rtDescriptorPool, m_rtDescriptorSetLayout);
+    m_rtDescriptorSet = m_rtDSG.generateSet(m_device, m_rtDescriptorPool, m_rtDescriptorSetLayout);
 
     VkWriteDescriptorSetAccelerationStructureNV descSetASInfo = {};
     descSetASInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
@@ -1414,9 +1480,9 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Camera matrices
     VkDescriptorBufferInfo cameraInfo = {};
-    cameraInfo.buffer                 = m_ctx.graphics.uniformBuffers[m_currentImage];
+    cameraInfo.buffer                 = m_graphics.uniformBuffers[m_currentImage];
     cameraInfo.offset                 = 0;
-    cameraInfo.range                  = sizeof(VkTools::graphicsUBO);
+    cameraInfo.range                  = sizeof(UniformBufferObject);
 
     m_rtDSG.Bind(m_rtDescriptorSet, 2, {cameraInfo});
 
@@ -1459,7 +1525,7 @@ void vkContext::createRaytracingDescriptorSet()
         m_rtDSG.Bind(m_rtDescriptorSet, 6, imageInfos);
     }
 
-    m_rtDSG.UpdateSetContents(m_ctx.device, m_rtDescriptorSet);
+    m_rtDSG.UpdateSetContents(m_device, m_rtDescriptorSet);
 }
 
 void vkContext::updateRaytracingRenderTarget(VkImageView target)
@@ -1470,7 +1536,7 @@ void vkContext::updateRaytracingRenderTarget(VkImageView target)
     VkImageLayout         imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     m_rtDSG.Bind(m_rtDescriptorSet, 1, {imageInfo});
-    m_rtDSG.UpdateSetContents(m_ctx.device, m_rtDescriptorSet);
+    m_rtDSG.UpdateSetContents(m_device, m_rtDescriptorSet);
 }
 
 void vkContext::createRaytracingPipeline()
@@ -1479,22 +1545,22 @@ void vkContext::createRaytracingPipeline()
     RaytracingPipelineGenerator pipelineGen;
 
     VkShaderModule rayGenModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rgen.spv", m_ctx.device);
+        VkTools::createShaderModule("../../shaders/pathRT.rgen.spv", m_device);
     m_raygenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
 
     VkShaderModule missModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rmiss.spv", m_ctx.device);
+        VkTools::createShaderModule("../../shaders/pathRT.rmiss.spv", m_device);
     m_missIndex = pipelineGen.AddMissShaderStage(missModule);
 
     VkShaderModule missShadowModule =
-        VkTools::createShaderModule("../../shaders/pathRTShadow.rmiss.spv", m_ctx.device);
+        VkTools::createShaderModule("../../shaders/pathRTShadow.rmiss.spv", m_device);
     m_shadowMissIndex = pipelineGen.AddMissShaderStage(missShadowModule);
 
     // ---
     m_hitGroupIndex = pipelineGen.StartHitGroup();
 
     VkShaderModule closestHitModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rchit.spv", m_ctx.device);
+        VkTools::createShaderModule("../../shaders/pathRT.rchit.spv", m_device);
     pipelineGen.AddHitShaderStage(closestHitModule, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     pipelineGen.EndHitGroup();
@@ -1505,12 +1571,12 @@ void vkContext::createRaytracingPipeline()
 
     pipelineGen.SetMaxRecursionDepth(2);
 
-    pipelineGen.Generate(m_ctx.device, m_rtDescriptorSetLayout, &m_rtPipeline, &m_rtPipelineLayout);
+    pipelineGen.Generate(m_device, m_rtDescriptorSetLayout, &m_rtPipeline, &m_rtPipelineLayout);
 
-    vkDestroyShaderModule(m_ctx.device, rayGenModule, nullptr);
-    vkDestroyShaderModule(m_ctx.device, missModule, nullptr);
-    vkDestroyShaderModule(m_ctx.device, missShadowModule, nullptr);
-    vkDestroyShaderModule(m_ctx.device, closestHitModule, nullptr);
+    vkDestroyShaderModule(m_device, rayGenModule, nullptr);
+    vkDestroyShaderModule(m_device, missModule, nullptr);
+    vkDestroyShaderModule(m_device, missShadowModule, nullptr);
+    vkDestroyShaderModule(m_device, closestHitModule, nullptr);
 }
 
 void vkContext::createShaderBindingTable()
@@ -1522,8 +1588,9 @@ void vkContext::createShaderBindingTable()
 
     VkDeviceSize shaderBindingTableSize = m_sbtGen.ComputeSBTSize(m_RaytracingProperties);
 
-    VkTools::createBufferNoVMA(&m_ctx, shaderBindingTableSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, shaderBindingTableSize,
+                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &m_sbtBuffer, &m_sbtMemory);
 
-    m_sbtGen.Generate(m_ctx.device, m_rtPipeline, m_sbtBuffer, m_sbtMemory);
+    m_sbtGen.Generate(m_device, m_rtPipeline, m_sbtBuffer, m_sbtMemory);
 }

@@ -155,7 +155,7 @@ VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
     return shaderModule;
 }
 
-void createBuffer(Context*            ctx,
+void createBuffer(VmaAllocator          allocator,
                   VkDeviceSize          size,
                   VkBufferUsageFlags    usage,
                   VmaMemoryUsage        vmaUsage,
@@ -179,11 +179,12 @@ void createBuffer(Context*            ctx,
     allocInfo.memoryTypeBits;
     allocInfo.pool;
 
-    VK_CHECK_RESULT(vmaCreateBuffer(ctx->allocator, &bufferInfo, &allocInfo, &buffer,
-                                    &bufferMemory, nullptr));
+    VK_CHECK_RESULT(
+        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &bufferMemory, nullptr));
 }
 
-void createBufferNoVMA(Context*            ctx,
+void createBufferNoVMA(VkDevice              device,
+                       VkPhysicalDevice      physicalDevice,
                        VkDeviceSize          size,
                        VkBufferUsageFlags    usage,
                        VkMemoryPropertyFlags properties,
@@ -196,20 +197,20 @@ void createBufferNoVMA(Context*            ctx,
     bufferInfo.usage              = usage;
     bufferInfo.sharingMode        = VK_SHARING_MODE_EXCLUSIVE;
 
-    VK_CHECK_RESULT(vkCreateBuffer(ctx->device, &bufferInfo, nullptr, buffer));
+    VK_CHECK_RESULT(vkCreateBuffer(device, &bufferInfo, nullptr, buffer));
 
     VkMemoryRequirements memoryRequirements = {};
-    vkGetBufferMemoryRequirements(ctx->device, *buffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(device, *buffer, &memoryRequirements);
 
     VkMemoryAllocateInfo allocateInfo = {};
     allocateInfo.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocateInfo.allocationSize       = memoryRequirements.size;
     allocateInfo.memoryTypeIndex =
-        findMemoryType(ctx->gpu.physicalDevice, memoryRequirements.memoryTypeBits, properties);
+        findMemoryType(physicalDevice, memoryRequirements.memoryTypeBits, properties);
 
-    VK_CHECK_RESULT(vkAllocateMemory(ctx->device, &allocateInfo, nullptr, bufferMemory));
+    VK_CHECK_RESULT(vkAllocateMemory(device, &allocateInfo, nullptr, bufferMemory));
 
-    VK_CHECK_RESULT(vkBindBufferMemory(ctx->device, *buffer, *bufferMemory, 0));
+    VK_CHECK_RESULT(vkBindBufferMemory(device, *buffer, *bufferMemory, 0));
 }
 
 uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
@@ -231,42 +232,10 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-VkCommandBuffer beginSingleTimeCommands(const Context* ctx)
-{
-    VkCommandBufferAllocateInfo allocateInfo = {};
-    allocateInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool                 = ctx->graphics.commandPool;
-    allocateInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocateInfo.commandBufferCount          = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(ctx->device, &allocateInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-    return commandBuffer;
-}
-
-void endSingleTimeCommands(const Context* ctx, VkCommandBuffer commandBuffer)
-{
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo       = {};
-    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers    = &commandBuffer;
-
-    vkQueueSubmit(ctx->queues.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(ctx->queues.graphicsQueue);
-
-    vkFreeCommandBuffers(ctx->device, ctx->graphics.commandPool, 1, &commandBuffer);
-}
-
-VkImageView createImageView(Context* ctx, VkImage image, VkFormat format, VkImageAspectFlags aspect)
+VkImageView createImageView(VkDevice           device,
+                            VkImage            image,
+                            VkFormat           format,
+                            VkImageAspectFlags aspect)
 {
     VkImageViewCreateInfo createInfo = {};
     createInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -285,7 +254,7 @@ VkImageView createImageView(Context* ctx, VkImage image, VkFormat format, VkImag
     createInfo.subresourceRange.layerCount     = 1;
 
     VkImageView imageView;
-    VK_CHECK_RESULT(vkCreateImageView(ctx->device, &createInfo, nullptr, &imageView));
+    VK_CHECK_RESULT(vkCreateImageView(device, &createInfo, nullptr, &imageView));
     return imageView;
 }
 

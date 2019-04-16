@@ -48,44 +48,7 @@ class vkContext
     }
 
     private:
-    void initVulkan()
-    {
-        m_Window             = std::make_unique<vkWindow>(this);
-        m_DebugAndExtensions = std::make_unique<vkDebugAndExtensions>();
-
-        m_Window->initGLFW();
-
-        m_DebugAndExtensions->init();
-        createInstance();
-        m_DebugAndExtensions->setupDebugMessenger(m_Instance);
-        selectPhysicalDevice();
-        createSurface();
-        findQueueFamilyIndices();
-        createLogicalDevice();
-        createSynchronizationPrimitives();
-        createSwapchain();
-        createRenderPass();
-        createCommandPools();
-        createDepthResources();
-        createFrameBuffers();
-        createCommandBuffers();
-        createUniformBuffers();
-
-        createDescriptorPool();
-        setupGraphicsDescriptors();
-
-        createPipeline();
-        createVertexAndIndexBuffers();
-
-        initRaytracing();
-        createGeometryInstances();
-        createAccelerationStructures();
-        createRaytracingDescriptorSet();
-        createRaytracingPipeline();
-        createShaderBindingTable();
-
-        recordCommandBuffers();
-    }
+    void initVulkan();
 
     void mainLoop();
     void renderFrame();
@@ -119,43 +82,61 @@ class vkContext
     void recordCommandBuffers();
     void createVertexAndIndexBuffers();
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+VkCommandBuffer beginSingleTimeCommands();
+    void            endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
-    VkInstance                            m_Instance = VK_NULL_HANDLE;
-    std::unique_ptr<vkWindow>             m_Window;
-    std::unique_ptr<vkDebugAndExtensions> m_DebugAndExtensions;
-    VkTools::Context                      m_ctx;
-    bool                                  m_RenderMode_Raster = false;
+    struct UniformBufferObject
+    {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 modelIT;
+
+        glm::mat4 viewInverse;
+        glm::mat4 projInverse;
+    };
+
+    struct  // VertexData
+    {
+        VkBuffer      vertexBuffer             = VK_NULL_HANDLE;
+        VmaAllocation vertexBufferMemory       = VK_NULL_HANDLE;
+        VkBuffer      indexBuffer              = VK_NULL_HANDLE;
+        VmaAllocation indexBufferMemory        = VK_NULL_HANDLE;
+        VkBuffer      materialBuffer           = VK_NULL_HANDLE;
+        VmaAllocation materialBufferAllocation = VK_NULL_HANDLE;
+        uint32_t      nbVertices               = 0;
+        uint32_t      nbIndices                = 0;
+    } m_VertexData;
+
+    std::unique_ptr<vkWindow>             m_window;
+    std::unique_ptr<vkDebugAndExtensions> m_debugAndExtensions;
+    bool                                  m_renderMode_Raster = true;
     uint32_t                              m_currentImage      = 0;
-
-struct Context
-{
-    VkDevice                 device    = VK_NULL_HANDLE;
-    VmaAllocator             allocator = VK_NULL_HANDLE;
-    VkSurfaceKHR             surface   = VK_NULL_HANDLE;
-    VkSurfaceCapabilitiesKHR surfaceCapabilities;
-    VkSurfaceFormatKHR       surfaceFormat;
-    VkSwapchainKHR           swapchain = VK_NULL_HANDLE;
-
-    std::vector<VkPhysicalDevice> physicalDevices;
+    VkInstance                            m_instance          = VK_NULL_HANDLE;
+    VkDevice                              m_device            = VK_NULL_HANDLE;
+    VmaAllocator                          m_allocator         = VK_NULL_HANDLE;
+    VkQueue                               m_queue             = VK_NULL_HANDLE;
 
     struct  // GPU
     {
         VkPhysicalDevice                     physicalDevice = VK_NULL_HANDLE;
+        std::vector<VkPhysicalDevice>        physicalDevices;
         VkPhysicalDeviceProperties           properties;
         VkPhysicalDeviceFeatures             features;
         std::vector<VkQueueFamilyProperties> queueFamilyProperties;
-    } gpu;
+        int                                  queueFamily    = -1;
+    } m_gpu;
 
-    struct  // Queues
+    struct // Surface
     {
-        int     graphicsFamily = -1;
-        int     computeFamily  = -1;
-        VkQueue graphicsQueue  = VK_NULL_HANDLE;
-        VkQueue computeQueue   = VK_NULL_HANDLE;
-    } queues;
+        VkSurfaceKHR             surface = VK_NULL_HANDLE;
+        VkSurfaceCapabilitiesKHR surfaceCapabilities;
+        VkSurfaceFormatKHR       surfaceFormat;
+    } m_surface;
 
     struct  // Swapchain
     {
+        VkSwapchainKHR   swapchain = VK_NULL_HANDLE;
         VkExtent2D       extent;
         VkPresentModeKHR presentMode;
         VkFormat         imageFormat;
@@ -166,7 +147,7 @@ struct Context
         std::vector<VkPresentModeKHR>   presentModeList;
         std::vector<VkSurfaceFormatKHR> surfaceFormatList;
         std::vector<VkCommandBuffer>    commandBuffers;
-    } swapchainCtx;
+    } m_swapchain;
 
     struct  // Graphics
     {
@@ -181,7 +162,7 @@ struct Context
         VkPipeline                   pipeline       = VK_NULL_HANDLE;
         std::vector<VkBuffer>        uniformBuffers;
         std::vector<VmaAllocation>   uniformBufferAllocations;
-        graphicsUBO                  ubo;
+        UniformBufferObject          ubo;
 
         struct  // Depth
         {
@@ -190,14 +171,10 @@ struct Context
             VkImageView   view   = VK_NULL_HANDLE;
             VkFormat      format = VK_FORMAT_D32_SFLOAT;
         } depth;
+    } m_graphics;
 
-
-    } graphics;
-};
+    // ------------------------------------------------------------------------
     //NV RTX
-
-    void                                   initRaytracing();
-    VkPhysicalDeviceRayTracingPropertiesNV m_RaytracingProperties = {};
 
     struct GeometryInstance
     {
@@ -210,8 +187,6 @@ struct Context
         glm::mat4    transform;
     };
 
-    void                          createGeometryInstances();
-    std::vector<GeometryInstance> m_GeometryInstances;
 
     struct AccelerationStructure
     {
@@ -224,6 +199,10 @@ struct Context
         VkAccelerationStructureNV structure       = VK_NULL_HANDLE;
     };
 
+
+    void initRaytracing();
+    void createGeometryInstances();
+
     AccelerationStructure createBottomLevelAS(VkCommandBuffer               commandBuffer,
                                               std::vector<GeometryInstance> vVertexBuffers);
 
@@ -235,12 +214,18 @@ struct Context
     void createAccelerationStructures();
     void destroyAccelerationStructures(const AccelerationStructure& as);
 
+    void createRaytracingDescriptorSet();
+    void updateRaytracingRenderTarget(VkImageView target);
+    void createRaytracingPipeline();
+    void createShaderBindingTable();
+
+    VkPhysicalDeviceRayTracingPropertiesNV m_RaytracingProperties = {};
+    std::vector<GeometryInstance>          m_GeometryInstances;
+
     topLevelASGenerator                m_TopLevelASGenerator;
     AccelerationStructure              m_TopLevelAS;
     std::vector<AccelerationStructure> m_BottomLevelAS;
 
-    void                   createRaytracingDescriptorSet();
-    void                   updateRaytracingRenderTarget(VkImageView target);
     DescriptorSetGenerator m_rtDSG;
     VkDescriptorPool       m_rtDescriptorPool;
     VkDescriptorSetLayout  m_rtDescriptorSetLayout;
@@ -254,7 +239,6 @@ struct Context
     std::vector<VkSampler>     m_textureSampler;
 
 
-    void             createRaytracingPipeline();
     VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_rtPipeline       = VK_NULL_HANDLE;
 
@@ -265,20 +249,7 @@ struct Context
     uint32_t m_shadowMissIndex;
     uint32_t m_shadowHitGroupIndex;
 
-    void                        createShaderBindingTable();
     ShaderBindingTableGenerator m_sbtGen;
     VkBuffer                    m_sbtBuffer = VK_NULL_HANDLE;
     VkDeviceMemory              m_sbtMemory = VK_NULL_HANDLE;
-
-    struct  // VertexData
-    {
-        VkBuffer      vertexBuffer             = VK_NULL_HANDLE;
-        VmaAllocation vertexBufferMemory       = VK_NULL_HANDLE;
-        VkBuffer      indexBuffer              = VK_NULL_HANDLE;
-        VmaAllocation indexBufferMemory        = VK_NULL_HANDLE;
-        VkBuffer      materialBuffer           = VK_NULL_HANDLE;
-        VmaAllocation materialBufferAllocation = VK_NULL_HANDLE;
-        uint32_t      nbVertices               = 0;
-        uint32_t      nbIndices                = 0;
-    } m_VertexData;
 };

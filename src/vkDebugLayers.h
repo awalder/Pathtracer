@@ -16,8 +16,8 @@ class vkDebugAndExtensions
     std::vector<const char*> getRequiredDeviceExtensions() const;
     std::vector<const char*> getRequiredInstanceLayers() const;
 
-    void setupDebugMessenger(VkInstance m_Instance);
-    void cleanUp(VkInstance m_Instance);
+    void setupDebugMessenger(VkInstance m_instance);
+    void cleanUp(VkInstance m_instance);
 
     struct LayerProperties
     {
@@ -51,11 +51,11 @@ class vkDebugAndExtensions
                                                         const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
                                                         void*                                       userData);
 
-    VkResult createDebugUtilsMessengerEXT(VkInstance                                m_Instance,
+    VkResult createDebugUtilsMessengerEXT(VkInstance                                m_instance,
                                           const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
                                           const VkAllocationCallbacks*              pAllocator,
                                           VkDebugUtilsMessengerEXT*                 pMessenger);
-    void     destroyDebugUtilsMessengerEXT(VkInstance                   m_Instance,
+    void     destroyDebugUtilsMessengerEXT(VkInstance                   m_instance,
                                            VkDebugUtilsMessengerEXT     messenger,
                                            const VkAllocationCallbacks* pAllocator);
 

@@ -17,17 +17,6 @@
 
 namespace VkTools {
 
-struct graphicsUBO
-{
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-    glm::mat4 modelIT;
-
-    glm::mat4 viewInverse;
-    glm::mat4 projInverse;
-};
-
 
 const char*       deviceType(VkPhysicalDeviceType type);
 const char*       errorString(VkResult res);
@@ -35,14 +24,15 @@ std::vector<char> loadShader(const char* path);
 VkShaderModule    createShaderModule(const std::string& path, VkDevice deviceCtx);
 
 
-void createBuffer(Context*              ctx,
+void createBuffer(VmaAllocator          allocator,
                   VkDeviceSize          size,
                   VkBufferUsageFlags    usage,
                   VmaMemoryUsage        vmaUsage,
                   VkMemoryPropertyFlags properties,
                   VkBuffer&             buffer,
                   VmaAllocation&        bufferMemory);
-void createBufferNoVMA(Context*              ctx,
+void createBufferNoVMA(VkDevice              device,
+                       VkPhysicalDevice      physicalDevice,
                        VkDeviceSize          size,
                        VkBufferUsageFlags    usage,
                        VkMemoryPropertyFlags properties,
@@ -53,10 +43,8 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
                         uint32_t              typeFilter,
                         VkMemoryPropertyFlags properties);
 
-VkCommandBuffer beginSingleTimeCommands(const Context* ctx);
-void            endSingleTimeCommands(const Context* ctx, VkCommandBuffer commandBuffer);
 
-VkImageView createImageView(Context*           ctx,
+VkImageView createImageView(VkDevice           device,
                             VkImage            image,
                             VkFormat           format,
                             VkImageAspectFlags aspect);
