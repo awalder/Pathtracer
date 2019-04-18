@@ -43,8 +43,8 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
     //LoadModelFromFile("../../scenes/vulkanScene/vulkanscenemodels.dae");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
-    LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    //LoadModelFromFile("../../scenes/living_room/living_room.obj");
+    //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
+    LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");

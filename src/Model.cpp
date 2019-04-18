@@ -74,7 +74,7 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
         }
 
         uint32_t indexBase = lastMeshIndex;
-        //uint32_t indexBase = static_cast<uint32_t>(indices.size());
+        //uint32_t indexBase = static_cast<uint32_t>(vertices.size());
         for(uint32_t j = 0; j < pMesh->mNumFaces; ++j)
         {
             const aiFace& face = pMesh->mFaces[j];
@@ -90,28 +90,9 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
             //indices.push_back(indexBase + face.mIndices[0]);
             //indices.push_back(indexBase + face.mIndices[1]);
             //indices.push_back(indexBase + face.mIndices[2]);
-            numIndices += face.mNumIndices;
+            numIndices += 3;
         }
     }
-
-    //std::unordered_map<VertexPNTC, uint32_t> uniqueVertices;
-    //std::vector<VertexPNTC>                  vertices2;
-    //std::vector<uint32_t>                    indices2;
-    ////vertices.reserve(indices.size());
-    //for(uint32_t i : indices)
-    //{
-    //    VertexPNTC vertex = vertices[i];
-    //    if(uniqueVertices.count(vertex) == 0)
-    //    {
-    //        uniqueVertices[vertex] = static_cast<uint32_t>(vertices2.size());
-    //        vertices.push_back(vertex);
-    //    }
-
-    //    indices2.push_back(uniqueVertices[vertex]);
-    //}
-
-    //vertices = std::move(vertices2);
-    //indices  = std::move(indices2);
 
     VkBuffer      vStagingBuffer;
     VmaAllocation vStagingBufferMemory;

@@ -24,13 +24,16 @@ class vkContext;
 namespace VkTools {
 struct Material
 {
-    glm::vec3 ambient;
-    glm::vec3 diffuse;
-    glm::vec3 specular;
-    glm::vec3 emission;
-    float     glossiness;
-    float     indexOfRefraction;
-    int       textureID = -1;
+    glm::vec3 ambient           = glm::vec3(0.1f, 0.1f, 0.1f);
+    glm::vec3 diffuse           = glm::vec3(0.0f, 1.0f, 1.0f);
+    glm::vec3 specular          = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 transmittance     = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 emission          = glm::vec3(0.0f, 0.0f, 0.0f);
+    float     glossiness        = 0.0f;
+    float     indexOfRefraction = 1.0f;
+    float     dissolve          = 1.0f;
+    int       illumination      = 0;
+    int       textureID         = -1;
 };
 
 enum class TextureType
@@ -49,6 +52,7 @@ struct VertexPNTC
     glm::vec3 n;
     glm::vec2 t;
     glm::vec4 c;
+    int       materialID = -1;
     //int       textureID;
 
     VertexPNTC() {}
@@ -104,17 +108,17 @@ struct VertexPNTC
     }
 };
 
-struct Texture
-{
-    //VkSampler     sampler;
-    VkImage       image;
-    VkImageLayout layout;
-    VkImageView   view;
-    VmaAllocation memory;
-    uint32_t      id, width, height;
-    TextureType   type;
-    std::string   path;
-};
+//struct Texture
+//{
+//    //VkSampler     sampler;
+//    VkImage       image;
+//    VkImageLayout layout;
+//    VkImageView   view;
+//    VmaAllocation memory;
+//    uint32_t      id, width, height;
+//    TextureType   type;
+//    std::string   path;
+//};
 
 //class VkContext;
 struct Model
@@ -128,13 +132,13 @@ struct Model
 
     void cleanUp();
 
-    void             LoadModelFromFile(const std::string& filepath);
-    static const int aiDefaultFlags = aiProcess_Triangulate | aiProcess_GenSmoothNormals
-                                      | aiProcess_CalcTangentSpace | aiProcess_OptimizeMeshes;
+    void LoadModelFromFile(const std::string& filepath);
+    //static const int aiDefaultFlags = aiProcess_Triangulate | aiProcess_GenSmoothNormals
+    //                                  | aiProcess_CalcTangentSpace | aiProcess_OptimizeMeshes;
     //static const int aiDefaultFlags = aiProcess_Triangulate | aiProcess_OptimizeMeshes;
-    //static const int aiDefaultFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate
-    //                                  | aiProcess_SortByPType | aiProcess_PreTransformVertices
-    //                                  | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
+    static const int aiDefaultFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate
+                                      | aiProcess_SortByPType | aiProcess_PreTransformVertices
+                                      | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
     struct ModelPart
     {
@@ -152,13 +156,10 @@ struct Model
     uint32_t                numIndices  = 0;
 
     const vkContext* vkctx;
-    //VkDevice         device        = VK_NULL_HANDLE;
-    //VmaAllocator     allocator     = VK_NULL_HANDLE;
-    VkBuffer      vertexBuffer = VK_NULL_HANDLE;
-    VmaAllocation vertexMemory = VK_NULL_HANDLE;
-    VkBuffer      indexBuffer  = VK_NULL_HANDLE;
-    VmaAllocation indexMemory  = VK_NULL_HANDLE;
-    //VkCommandBuffer  commandBuffer = VK_NULL_HANDLE;
+    VkBuffer         vertexBuffer = VK_NULL_HANDLE;
+    VmaAllocation    vertexMemory = VK_NULL_HANDLE;
+    VkBuffer         indexBuffer  = VK_NULL_HANDLE;
+    VmaAllocation    indexMemory  = VK_NULL_HANDLE;
 };
 
 
