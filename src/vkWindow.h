@@ -3,13 +3,21 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+#include "CameraControls.h"
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+
+#include <glm/glm.hpp>
+
 class vkContext;
 
 class vkWindow
 {
     public:
     vkWindow(vkContext* r)
-        : m_vkRenderer(r)
+        : m_vkContext(r)
     {
     }
 
@@ -25,11 +33,39 @@ class vkWindow
     inline void pollEvents() { glfwPollEvents(); }
     GLFWwindow* getWindow() const { return m_GLFWwindow; }
     VkExtent2D  getWindowSize() const { return m_WindowSize; }
+    void        update(float deltaTime);
+
+    CameraControls m_camera;
 
     private:
-    GLFWwindow* m_GLFWwindow = nullptr;
-    vkContext* m_vkRenderer = nullptr;
-    VkExtent2D  m_WindowSize = {1024, 1024};
+    GLFWwindow*    m_GLFWwindow = nullptr;
+    vkContext*     m_vkContext  = nullptr;
+    VkExtent2D     m_WindowSize = {1024, 1024};
+
+
+    struct
+    {
+        bool left = false, right = false, up = false, down = false, forward = false, back = false,
+             l_shift = false;
+    } keys;
+
+    struct
+    {
+        glm::vec2 currentPosition;
+        glm::vec2 lastPositon;
+        glm::vec2 delta;
+    } mouse;
+
+    struct
+    {
+        bool left = false, middle = false, right = false;
+    } mouseButtons;
+
+    void handleKeyboardInput(int key, bool isPressed);
+    void handleMouseButtonInput(int button, bool isPressed);
+    void handleMouseCursorInput(double xpos, double ypos);
+    void handleMouseScrollInput(double xpos, double ypos);
+
 
     // GLFW callback functions
     static void onWindowResized(GLFWwindow* window, int width, int height);

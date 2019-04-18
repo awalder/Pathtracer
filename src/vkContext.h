@@ -27,7 +27,7 @@
 
 #define VULKAN_PATCH_VERSION 101
 
-#include "Mesh.h"
+#include "Model.h"
 #include "vkDebugLayers.h"
 #include "vkRT_BLAS.h"
 #include "vkRT_DescriptorSets.h"
@@ -47,6 +47,11 @@ class vkContext
         cleanUp();
     }
 
+    VkDevice      getDevice() const { return m_device; }
+    VmaAllocator  getAllocator() const { return m_allocator; }
+    VkCommandPool getCommandPool() const { return m_graphics.commandPool; }
+    VkQueue       getQueue() const { return m_queue; }
+
     private:
     void initVulkan();
 
@@ -63,27 +68,42 @@ class vkContext
     void createSynchronizationPrimitives();
     void createSwapchain();
     void createCommandPools();
+    void createPipeline();
     void createCommandBuffers();
     void createDepthResources();
     void createRenderPass();
     void createFrameBuffers();
     void createUniformBuffers();
     void updateGraphicsUniforms();
-    void createImage(VkExtent2D               extent,
-                     VkFormat                 format,
-                     VkImageTiling            tiling,
-                     VkImageUsageFlags        usage,
-                     VkMemoryPropertyFlagBits memoryPropertyBits,
-                     VkImage&                 image,
-                     VkDeviceMemory&          imageMemory);
-    void createPipeline();
+
     void createDescriptorPool();
     void setupGraphicsDescriptors();
     void recordCommandBuffers();
-    void createVertexAndIndexBuffers();
+    void createVertexAndIndexBuffers(const std::vector<VkTools::VertexPNTC>& vertices,
+                                     const std::vector<uint32_t>&            indices,
+                                     VkBuffer*                               vertexBuffer,
+                                     VmaAllocation*                          vertexMemory,
+                                     VkBuffer*                               indexBuffer,
+                                     VmaAllocation*                          indexMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-VkCommandBuffer beginSingleTimeCommands();
+
+    template <typename T>
+    void createBufferWithStaging(std::vector<T>        src,
+                                 VkBufferUsageFlagBits usage,
+                                 VkBuffer*             buffer,
+                                 VmaAllocation*        bufferMemory);
+
+    VkCommandBuffer beginSingleTimeCommands();
     void            endSingleTimeCommands(VkCommandBuffer commandBuffer);
+
+    void LoadModelFromFile(const std::string& objPath);
+
+    //struct cmdBufInfo
+    //{
+    //    VkDevice      device = VK_NULL_HANDLE;
+    //    VkCommandPool pool = VK_NULL_HANDLE;
+    //    VkQueue       queue = VK_NULL_HANDLE;
+    //};
 
     struct UniformBufferObject
     {
@@ -108,6 +128,11 @@ VkCommandBuffer beginSingleTimeCommands();
         uint32_t      nbIndices                = 0;
     } m_VertexData;
 
+    //struct  // Models
+    //{
+    //    VkTools::Model model;
+    //} m_models;
+
     std::unique_ptr<vkWindow>             m_window;
     std::unique_ptr<vkDebugAndExtensions> m_debugAndExtensions;
     bool                                  m_renderMode_Raster = true;
@@ -116,6 +141,9 @@ VkCommandBuffer beginSingleTimeCommands();
     VkDevice                              m_device            = VK_NULL_HANDLE;
     VmaAllocator                          m_allocator         = VK_NULL_HANDLE;
     VkQueue                               m_queue             = VK_NULL_HANDLE;
+    float                                 m_deltaTime         = 0.00001f;
+
+    std::vector<VkTools::Model> m_models;
 
     struct  // GPU
     {
@@ -124,10 +152,10 @@ VkCommandBuffer beginSingleTimeCommands();
         VkPhysicalDeviceProperties           properties;
         VkPhysicalDeviceFeatures             features;
         std::vector<VkQueueFamilyProperties> queueFamilyProperties;
-        int                                  queueFamily    = -1;
+        int                                  queueFamily = -1;
     } m_gpu;
 
-    struct // Surface
+    struct  // Surface
     {
         VkSurfaceKHR             surface = VK_NULL_HANDLE;
         VkSurfaceCapabilitiesKHR surfaceCapabilities;
@@ -227,9 +255,9 @@ VkCommandBuffer beginSingleTimeCommands();
     std::vector<AccelerationStructure> m_BottomLevelAS;
 
     DescriptorSetGenerator m_rtDSG;
-    VkDescriptorPool       m_rtDescriptorPool;
-    VkDescriptorSetLayout  m_rtDescriptorSetLayout;
-    VkDescriptorSet        m_rtDescriptorSet;
+    VkDescriptorPool       m_rtDescriptorPool      = VK_NULL_HANDLE;
+    VkDescriptorSetLayout  m_rtDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet        m_rtDescriptorSet       = VK_NULL_HANDLE;
 
     std::vector<VkCommandBuffer> m_rtCommandBuffers;
 

@@ -155,13 +155,47 @@ VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
     return shaderModule;
 }
 
+VkCommandBuffer beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool)
+{
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool                 = pool;
+    allocateInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount          = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void flushCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer commandBuffer) {
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo       = {};
+    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers    = &commandBuffer;
+
+    vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(queue);
+
+    vkFreeCommandBuffers(device, pool, 1, &commandBuffer);
+}
+
 void createBuffer(VmaAllocator          allocator,
                   VkDeviceSize          size,
                   VkBufferUsageFlags    usage,
                   VmaMemoryUsage        vmaUsage,
                   VkMemoryPropertyFlags properties,
-                  VkBuffer&             buffer,
-                  VmaAllocation&        bufferMemory)
+                  VkBuffer*             buffer,
+                  VmaAllocation*        bufferMemory)
 {
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -180,7 +214,7 @@ void createBuffer(VmaAllocator          allocator,
     allocInfo.pool;
 
     VK_CHECK_RESULT(
-        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &bufferMemory, nullptr));
+        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, buffer, bufferMemory, nullptr));
 }
 
 void createBufferNoVMA(VkDevice              device,
@@ -213,6 +247,7 @@ void createBufferNoVMA(VkDevice              device,
     VK_CHECK_RESULT(vkBindBufferMemory(device, *buffer, *bufferMemory, 0));
 }
 
+
 uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
                         uint32_t              typeFilter,
                         VkMemoryPropertyFlags properties)
@@ -230,6 +265,40 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
     }
 
     throw std::runtime_error("failed to find suitable memory type!");
+}
+
+void createImage(VmaAllocator             allocator,
+                 VkExtent2D               extent,
+                 VkFormat                 format,
+                 VkImageTiling            tiling,
+                 VkImageUsageFlags        usage,
+                 VmaMemoryUsage vmaMemoryUsage,
+                 VkImage*                 image,
+                 VmaAllocation*           imageMemory)
+{
+    VkImageCreateInfo imageInfo = {};
+    imageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.pNext             = nullptr;
+    imageInfo.flags             = 0;
+    imageInfo.imageType         = VK_IMAGE_TYPE_2D;
+    imageInfo.format            = format;
+    imageInfo.extent.width      = extent.width;
+    imageInfo.extent.height     = extent.height;
+    imageInfo.extent.depth      = 1;
+    imageInfo.mipLevels         = 1;
+    imageInfo.arrayLayers       = 1;
+    imageInfo.samples           = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling            = tiling;
+    imageInfo.usage             = usage;
+    imageInfo.sharingMode       = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.queueFamilyIndexCount;
+    imageInfo.pQueueFamilyIndices;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage                   = vmaMemoryUsage;
+
+    VK_CHECK_RESULT(vmaCreateImage(allocator, &imageInfo, &allocInfo, image, imageMemory, nullptr));
 }
 
 VkImageView createImageView(VkDevice           device,

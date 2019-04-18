@@ -21,6 +21,8 @@ else()
 	add_compile_options("-Wall" "-Wextra" "-Werror" "$<$<CONFIG:RELEASE>:-03>")
 endif()
 
+message(${ASSIMP_LIBRARY})
+
 # These does not seem to make any difference
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_INSTALL_DIR ${CMAKE_SOURCE_DIR}/bin)
@@ -35,9 +37,11 @@ add_executable(${NAME} src/main.cpp
                         src/vkTools.h
                         src/vkDebugLayers.cpp
                         src/vkDebugLayers.h
-                        src/Mesh.cpp
-                        src/mesh.h
-                        src/vkRT_LoadFunctionPtrs.cpp
+                        src/Model.cpp
+                        src/Model.h
+                        src/CameraControls.cpp
+                        src/CameraControls.h
+                        src/vkRT_Import.cpp
                         src/vkRT_BLAS.cpp
                         src/vkRT_BLAS.h
                         src/vkRT_TLAS.cpp

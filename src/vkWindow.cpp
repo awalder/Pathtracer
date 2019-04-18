@@ -7,8 +7,9 @@ void vkWindow::initGLFW()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    m_GLFWwindow = glfwCreateWindow(static_cast<int>(m_WindowSize.width),
-                                    static_cast<int>(m_WindowSize.height), "dummyTitle", nullptr, nullptr);
+    m_GLFWwindow =
+        glfwCreateWindow(static_cast<int>(m_WindowSize.width),
+                         static_cast<int>(m_WindowSize.height), "dummyTitle", nullptr, nullptr);
 
     glfwSetWindowUserPointer(m_GLFWwindow, this);
     glfwSetKeyCallback(m_GLFWwindow, vkWindow::onKeyCallback);
@@ -16,6 +17,97 @@ void vkWindow::initGLFW()
     glfwSetMouseButtonCallback(m_GLFWwindow, vkWindow::onMouseButtonCallback);
     glfwSetCursorPosCallback(m_GLFWwindow, vkWindow::onCursorPositionCallback);
     glfwSetScrollCallback(m_GLFWwindow, vkWindow::onMouseScrollCallback);
+
+    m_camera.initDefaults(static_cast<float>(m_WindowSize.width)
+                          / static_cast<float>(m_WindowSize.height));
+}
+
+void vkWindow::update(float deltaTime)
+{
+    glm::vec3 move(0.0f);
+    if(keys.left)
+        move.x += 1.0f;
+    if(keys.right)
+        move.x -= 1.0f;
+    if(keys.forward)
+        move.z += 1.0f;
+    if(keys.back)
+        move.z -= 1.0f;
+    if(keys.up)
+        move.y += 1.0f;
+    if(keys.down)
+        move.y -= 1.0f;
+
+    m_camera.updateMovements(deltaTime, move);
+}
+
+void vkWindow::handleKeyboardInput(int key, bool isPressed)
+{
+    if(key == GLFW_KEY_A)
+    {
+        keys.left = isPressed;
+    }
+    if(key == GLFW_KEY_S)
+    {
+        keys.back = isPressed;
+    }
+    if(key == GLFW_KEY_D)
+    {
+        keys.right = isPressed;
+    }
+    if(key == GLFW_KEY_W)
+    {
+        keys.forward = isPressed;
+    }
+    if(key == GLFW_KEY_Q)
+    {
+        keys.up = isPressed;
+    }
+    if(key == GLFW_KEY_E)
+    {
+        keys.down = isPressed;
+    }
+    if(key == GLFW_KEY_LEFT_SHIFT)
+    {
+        keys.l_shift = isPressed;
+    }
+}
+
+void vkWindow::handleMouseButtonInput(int button, bool isPressed)
+{
+    if(button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        mouseButtons.left = isPressed;
+    }
+    if(button == GLFW_MOUSE_BUTTON_MIDDLE)
+    {
+        mouseButtons.middle = isPressed;
+    }
+    if(button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        mouseButtons.right = isPressed;
+    }
+}
+
+void vkWindow::handleMouseCursorInput(double xpos, double ypos)
+{
+    mouse.lastPositon     = mouse.currentPosition;
+    mouse.currentPosition = {static_cast<float>(xpos), static_cast<float>(ypos)};
+    mouse.delta           = mouse.currentPosition - mouse.lastPositon;
+
+    if(mouseButtons.right)
+    {
+        m_camera.updateMouseMovements(mouse.delta);
+        //std::cout << "LastPos: " << mouse.lastPositon.x << "\t" << mouse.lastPositon.y << "\t";
+        //std::cout << "CurrentPos: " << mouse.currentPosition.x << "\t" << mouse.currentPosition.y << "\t";
+        //std::cout << mouse.delta.x << "\t" << mouse.delta.y << std::endl;
+    }
+    mouse.delta = {0.0f, 0.0f};
+}
+
+void vkWindow::handleMouseScrollInput(double xpos, double ypos)
+{
+    m_camera.updateScroll(ypos);
 }
 
 void vkWindow::onWindowResized(GLFWwindow* window, int width, int height)
@@ -25,7 +117,6 @@ void vkWindow::onWindowResized(GLFWwindow* window, int width, int height)
     // If dimensions are zero, window is propably minimized
     while(width == 0 || height == 0)
     {
-        //glfwWaitEvents();
         return;
     }
 
@@ -41,10 +132,46 @@ void vkWindow::onKeyCallback(GLFWwindow* window, int key, int scancode, int acti
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
+
+    if(action == GLFW_PRESS)
+    {
+        app->handleKeyboardInput(key, true);
+    }
+    if(action == GLFW_RELEASE)
+    {
+        app->handleKeyboardInput(key, false);
+    }
 }
 
-void vkWindow::onCursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {}
+void vkWindow::onCursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
+{
+    auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
+    app->handleMouseCursorInput(xpos, ypos);
+}
 
-void vkWindow::onMouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {}
+void vkWindow::onMouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
+    if(action == GLFW_PRESS)
+    {
+        app->handleMouseButtonInput(button, true);
+        if(button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        }
+    }
+    if(action == GLFW_RELEASE)
+    {
+        app->handleMouseButtonInput(button, false);
+        if(button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+    }
+}
 
-void vkWindow::onMouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {}
+void vkWindow::onMouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
+    app->handleMouseScrollInput(xoffset, yoffset);
+}

@@ -37,10 +37,10 @@ class vkDebugAndExtensions
     std::vector<const char*> m_RequiredInstanceExtensions;
 
     // Platform specific swapchain extension
-    //std::vector<const char*> m_RequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    std::vector<const char*> m_RequiredDeviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_NV_RAY_TRACING_EXTENSION_NAME,
-        VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
+    std::vector<const char*> m_RequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    //std::vector<const char*> m_RequiredDeviceExtensions = {
+    //    VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_NV_RAY_TRACING_EXTENSION_NAME,
+    //    VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
 
     // Validation layer
     std::vector<const char*> m_RequiredInstanceLayers = {};

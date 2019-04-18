@@ -2,6 +2,7 @@
 
 #include <array>
 #include <spdlog/spdlog.h>
+#include <chrono>
 
 void vkContext::initVulkan()
 {
@@ -30,14 +31,28 @@ void vkContext::initVulkan()
     setupGraphicsDescriptors();
 
     createPipeline();
-    createVertexAndIndexBuffers();
+    //createVertexAndIndexBuffers();
 
-    initRaytracing();
-    createGeometryInstances();
-    createAccelerationStructures();
-    createRaytracingDescriptorSet();
-    createRaytracingPipeline();
-    createShaderBindingTable();
+    //initRaytracing();
+    //createGeometryInstances();
+    //createAccelerationStructures();
+    //createRaytracingDescriptorSet();
+    //createRaytracingPipeline();
+    //createShaderBindingTable();
+
+    //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
+    //LoadModelFromFile("../../scenes/vulkanScene/vulkanscenemodels.dae");
+    //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
+    LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
+    //LoadModelFromFile("../../scenes/living_room/living_room.obj");
+    //LoadModelFromFile("../../scenes/dragon/dragon.obj");
+    //LoadModelFromFile("../../scenes/sponza/sponza.obj");
+    //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
+    //LoadModelFromFile("../../scenes/conference/conference.obj");
+    //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
+    //LoadModelFromFile("../../scenes/gallery/gallery.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell.obj");
+    //LoadModelFromFile("../../scenes/suzanne.obj");
 
     recordCommandBuffers();
 }
@@ -49,8 +64,14 @@ void vkContext::mainLoop()
 
     while(m_window->isOpen())
     {
+        auto startTime = std::chrono::high_resolution_clock::now();
+
         m_window->pollEvents();
+        m_window->update(m_deltaTime);
         renderFrame();
+
+        auto endTime = std::chrono::high_resolution_clock::now();
+        m_deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(endTime - startTime).count();
     }
 }
 
@@ -118,7 +139,13 @@ void vkContext::cleanUp()
 
     cleanUpSwapchain();
 
+
     destroyAccelerationStructures(m_TopLevelAS);
+
+    for(auto& m : m_models)
+    {
+        m.cleanUp();
+    }
 
     for(auto& as : m_BottomLevelAS)
     {
@@ -746,28 +773,33 @@ void vkContext::createUniformBuffers()
                               VMA_MEMORY_USAGE_CPU_TO_GPU,
                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                                   | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                              buffer, memory);
+                              &buffer, &memory);
     }
 }
 
 void vkContext::updateGraphicsUniforms()
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
+    //static auto startTime = std::chrono::high_resolution_clock::now();
 
-    auto  currentTime = std::chrono::high_resolution_clock::now();
-    float time =
-        std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    //auto  currentTime = std::chrono::high_resolution_clock::now();
+    //float time =
+    //    std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    float aspect = m_swapchain.extent.width / static_cast<float>(m_swapchain.extent.height);
+    //float aspect = m_swapchain.extent.width / static_cast<float>(m_swapchain.extent.height);
 
-    float fov = 45.0f;
+    //float fov = 45.0f;
+
+    //UniformBufferObject ubo;
+    //ubo.model =
+    //    glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0, 1.0f));
+    //ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+    //                       glm::vec3(0.0f, 0.0f, 1.0f));
+    //ubo.proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 10.0f);
 
     UniformBufferObject ubo;
-    ubo.model =
-        glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-                           glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 10.0f);
+    ubo.model = glm::mat4(1.0f);
+    ubo.view  = m_window->m_camera.matrices.view;
+    ubo.proj  = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;
 
     ubo.viewInverse = glm::inverse(ubo.view);
@@ -778,21 +810,6 @@ void vkContext::updateGraphicsUniforms()
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage]);
 }
-
-void vkContext::createImage(VkExtent2D               extent,
-                            VkFormat                 format,
-                            VkImageTiling            tiling,
-                            VkImageUsageFlags        usage,
-                            VkMemoryPropertyFlagBits memoryPropertyBits,
-                            VkImage&                 image,
-                            VkDeviceMemory&          imageMemory)
-{
-}
-
-//void vkRenderer::createImage(VkExtent2D extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlagBits memoryPropertyBits, VkImage & image, VkDeviceMemory & imageMemory)
-//{
-//}
-
 
 void vkContext::createPipeline()
 {
@@ -814,8 +831,8 @@ void vkContext::createPipeline()
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertexShaderStageInfo,
                                                                    fragmentShaderStageInfo};
 
-    auto bindingDescription   = Vertex::getBindingDescription();
-    auto attributeDescription = Vertex::getAttributeDescriptions();
+    auto bindingDescription   = VkTools::VertexPNTC::getBindingDescription();
+    auto attributeDescription = VkTools::VertexPNTC::getAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1061,8 +1078,9 @@ void vkContext::recordCommandBuffers()
     imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     imageMemoryBarrier.subresourceRange    = subresourceRange;
 
-    VkDeviceSize offsets[]       = {0};
-    VkBuffer     vertexBuffers[] = {m_VertexData.vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    //VkBuffer     vertexBuffers[] = {m_models.model.m_vertexBuffer};
+    //VkBuffer     indexBuffers[]  = {m_models.model.m_indexBuffer};
 
     for(uint32_t i = 0; i < m_swapchain.frameBuffers.size(); ++i)
     {
@@ -1076,21 +1094,26 @@ void vkContext::recordCommandBuffers()
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
 
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            for(const auto& m : m_models)
+            {
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        m_graphics.pipelineLayout, 0, 1,
+                                        &m_graphics.descriptorSets[i], 0, nullptr);
 
-            vkCmdBindIndexBuffer(commandBuffer, m_VertexData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m.vertexBuffer, offsets);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_graphics.pipelineLayout, 0, 1, &m_graphics.descriptorSets[i],
-                                    0, nullptr);
+                vkCmdBindIndexBuffer(commandBuffer, m.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+                vkCmdDrawIndexed(commandBuffer, m.numIndices, 1, 0, 0, 0);
+            }
+
 
             vkCmdEndRenderPass(commandBuffer);
 
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
         }
         // NVRTX --------
+        if(0)
         {
             const VkCommandBuffer commandBuffer = m_rtCommandBuffers[i];
             renderPassInfo.framebuffer          = m_swapchain.frameBuffers[i];
@@ -1104,6 +1127,7 @@ void vkContext::recordCommandBuffers()
                                  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                  &imageMemoryBarrier);
 
+            // TODO: This does not belong here
             updateRaytracingRenderTarget(m_swapchain.views[i]);
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1131,7 +1155,12 @@ void vkContext::recordCommandBuffers()
     }
 }
 
-void vkContext::createVertexAndIndexBuffers()
+void vkContext::createVertexAndIndexBuffers(const std::vector<VkTools::VertexPNTC>& vertices,
+                                            const std::vector<uint32_t>&            indices,
+                                            VkBuffer*                               vertexBuffer,
+                                            VmaAllocation*                          vertexMemory,
+                                            VkBuffer*                               indexBuffer,
+                                            VmaAllocation*                          indexMemory)
 {
     VkBuffer      stagingBuffer;
     VmaAllocation stagingBufferMemory;
@@ -1140,8 +1169,8 @@ void vkContext::createVertexAndIndexBuffers()
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
     VkTools::createBuffer(
         m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-        stagingBufferMemory);
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer,
+        &stagingBufferMemory);
 
     void* data;
     vmaMapMemory(m_allocator, stagingBufferMemory, &data);
@@ -1151,9 +1180,9 @@ void vkContext::createVertexAndIndexBuffers()
     VkTools::createBuffer(m_allocator, bufferSize,
                           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                          m_VertexData.vertexBuffer, m_VertexData.vertexBufferMemory);
+                          vertexBuffer, vertexMemory);
 
-    copyBuffer(stagingBuffer, m_VertexData.vertexBuffer, bufferSize);
+    copyBuffer(stagingBuffer, *vertexBuffer, bufferSize);
 
     vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 
@@ -1162,8 +1191,8 @@ void vkContext::createVertexAndIndexBuffers()
     bufferSize = sizeof(indices[0]) * indices.size();
     VkTools::createBuffer(
         m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-        stagingBufferMemory);
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer,
+        &stagingBufferMemory);
 
     vmaMapMemory(m_allocator, stagingBufferMemory, &data);
     memcpy(data, indices.data(), bufferSize);
@@ -1172,9 +1201,9 @@ void vkContext::createVertexAndIndexBuffers()
     VkTools::createBuffer(m_allocator, bufferSize,
                           VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                          m_VertexData.indexBuffer, m_VertexData.indexBufferMemory);
+                          indexBuffer, indexMemory);
 
-    copyBuffer(stagingBuffer, m_VertexData.indexBuffer, bufferSize);
+    copyBuffer(stagingBuffer, *indexBuffer, bufferSize);
 
     vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 }
@@ -1191,6 +1220,39 @@ void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize 
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
     endSingleTimeCommands(commandBuffer);
+}
+
+// ------------------------------------------------------------------------------
+//  Copy data to GPU memory
+//
+template <typename T>
+inline void vkContext::createBufferWithStaging(std::vector<T>        src,
+                                               VkBufferUsageFlagBits usage,
+                                               VkBuffer*             buffer,
+                                               VmaAllocation*        bufferMemory)
+{
+    VkBuffer      stagingBuffer;
+    VmaAllocation stagingBufferMemory;
+
+    // Vertices
+    VkDeviceSize bufferSize = sizeof(src[0]) * src.size();
+    createBuffer(m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VMA_MEMORY_USAGE_CPU_ONLY,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
+
+    void* data;
+    vmaMapMemory(m_allocator, stagingBufferMemory, &data);
+    memcpy(data, src.data(), bufferSize);
+    vmaUnmapMemory(m_allocator, stagingBufferMemory);
+
+    createBuffer(m_allocator, bufferSize, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, *buffer,
+                 *bufferMemory);
+
+    copyBuffer(stagingBuffer, *buffer, bufferSize);
+
+    vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 }
 
 VkCommandBuffer vkContext::beginSingleTimeCommands()
@@ -1226,6 +1288,18 @@ void vkContext::endSingleTimeCommands(VkCommandBuffer commandBuffer)
     vkQueueWaitIdle(m_queue);
 
     vkFreeCommandBuffers(m_device, m_graphics.commandPool, 1, &commandBuffer);
+}
+
+void vkContext::LoadModelFromFile(const std::string& objPath)
+{
+
+
+    VkTools::Model model(this, objPath);
+
+    m_models.push_back(model);
+
+    //createVertexAndIndexBuffers(model.m_vertices, model.m_indices, &model.m_vertexBuffer,
+    //                            &model.m_vertexMemory, &model.m_indexBuffer, &model.m_indexMemory);
 }
 
 void vkContext::initRaytracing()
@@ -1274,13 +1348,15 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
         if(buffer.indexBuffer == VK_NULL_HANDLE)
         {
             bottomLevelAS.addVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
-                                          buffer.vertexCount, sizeof(Vertex), VK_NULL_HANDLE, 0);
+                                          buffer.vertexCount, sizeof(VkTools::VertexPNTC),
+                                          VK_NULL_HANDLE, 0);
         }
         else
         {
             bottomLevelAS.addVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
-                                          buffer.vertexCount, sizeof(Vertex), buffer.indexBuffer,
-                                          buffer.indexOffset, buffer.indexCount, VK_NULL_HANDLE, 0);
+                                          buffer.vertexCount, sizeof(VkTools::VertexPNTC),
+                                          buffer.indexBuffer, buffer.indexOffset, buffer.indexCount,
+                                          VK_NULL_HANDLE, 0);
         }
     }
 

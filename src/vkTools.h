@@ -22,6 +22,8 @@ const char*       deviceType(VkPhysicalDeviceType type);
 const char*       errorString(VkResult res);
 std::vector<char> loadShader(const char* path);
 VkShaderModule    createShaderModule(const std::string& path, VkDevice deviceCtx);
+VkCommandBuffer   beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool);
+void              flushCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer commandBuffer);
 
 
 void createBuffer(VmaAllocator          allocator,
@@ -29,8 +31,8 @@ void createBuffer(VmaAllocator          allocator,
                   VkBufferUsageFlags    usage,
                   VmaMemoryUsage        vmaUsage,
                   VkMemoryPropertyFlags properties,
-                  VkBuffer&             buffer,
-                  VmaAllocation&        bufferMemory);
+                  VkBuffer*             buffer,
+                  VmaAllocation*        bufferMemory);
 void createBufferNoVMA(VkDevice              device,
                        VkPhysicalDevice      physicalDevice,
                        VkDeviceSize          size,
@@ -43,11 +45,20 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
                         uint32_t              typeFilter,
                         VkMemoryPropertyFlags properties);
 
+void createImage(VmaAllocator             allocator,
+                 VkExtent2D               extent,
+                 VkFormat                 format,
+                 VkImageTiling            tiling,
+                 VkImageUsageFlags        usage,
+                 VmaMemoryUsage vmaMemoryUsage,
+                 VkImage*                 image,
+                 VmaAllocation*           imageMemory);
 
 VkImageView createImageView(VkDevice           device,
                             VkImage            image,
                             VkFormat           format,
                             VkImageAspectFlags aspect);
+
 
 }  // namespace VkTools
 
