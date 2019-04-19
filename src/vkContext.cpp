@@ -13,6 +13,10 @@
 
 #define IMGUI_MIN_IMAGE_COUNT 2
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::initVulkan()
 {
     m_window             = std::make_unique<vkWindow>(this);
@@ -36,7 +40,7 @@ void vkContext::initVulkan()
     createCommandBuffers();
     createUniformBuffers();
 
-    LoadModelFromFile("../../scenes/cornell/cornell.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
     //createVertexAndIndexBuffers();
@@ -54,7 +58,7 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
     //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
-    //LoadModelFromFile("../../scenes/dragon/dragon.obj");
+    LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
@@ -69,6 +73,10 @@ void vkContext::initVulkan()
     recordCommandBuffers();
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::mainLoop()
 {
     if(!m_window)
@@ -82,10 +90,6 @@ void vkContext::mainLoop()
         m_window->pollEvents();
         m_window->update(m_deltaTime);
 
-        ImGui_ImplGlfwVulkan_NewFrame();
-        ImGui::ShowDemoWindow();
-
-
         renderFrame();
 
         auto endTime = std::chrono::high_resolution_clock::now();
@@ -96,6 +100,10 @@ void vkContext::mainLoop()
                 .count();
     }
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::renderFrame()
 {
@@ -111,28 +119,35 @@ void vkContext::renderFrame()
     m_currentImage = imageIndex;
     updateGraphicsUniforms();
 
-    {  // ImGui
-        //vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-        //VkCommandBuffer cmdBuf = m_swapchain.commandBuffers[imageIndex];
-        VkCommandBuffer cmdBuf = beginSingleTimeCommands();
-        ImGui_ImplGlfwVulkan_Render(cmdBuf);
-        endSingleTimeCommands(cmdBuf);
-    }
+    // ImGui
+    VkCommandBuffer cmdBuf = beginSingleTimeCommands();
+    beginRenderPass(cmdBuf, m_graphics.renderpassImGui);
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
+
+    renderImGui(cmdBuf);
+
+    endRenderPass(cmdBuf);
+    vkEndCommandBuffer(cmdBuf);
+
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-    VkSubmitInfo submitInfo         = {};
-    submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &m_graphics.imageAvailableSemaphore;
-    submitInfo.pWaitDstStageMask    = waitStages;
-    submitInfo.commandBufferCount   = 1;
+    std::array<VkCommandBuffer, 2> cmdBuffers = {m_swapchain.commandBuffers[imageIndex], cmdBuf};
+
+    VkSubmitInfo submitInfo       = {};
+    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores    = &m_graphics.imageAvailableSemaphore;
+    submitInfo.pWaitDstStageMask  = waitStages;
+    submitInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffers.size());
+    //submitInfo.commandBufferCount   = 1;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphore;
 
     if(m_renderMode_Raster)
     {
-        submitInfo.pCommandBuffers = &m_swapchain.commandBuffers[imageIndex];
+        submitInfo.pCommandBuffers = cmdBuffers.data();
+        //submitInfo.pCommandBuffers = &m_swapchain.commandBuffers[imageIndex];
     }
     else
     {
@@ -144,6 +159,7 @@ void vkContext::renderFrame()
     {
         recreateSwapchain();
     }
+
 
     VkPresentInfoKHR presentInfo   = {};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -163,6 +179,28 @@ void vkContext::renderFrame()
     // Poor solution, move to fences
     vkQueueWaitIdle(m_queue);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
+
+void vkContext::renderImGui(VkCommandBuffer commandBuffer)
+{
+    ImGui_ImplGlfwVulkan_NewFrame();
+    ImGui::ShowDemoWindow();
+
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+                ImGui::GetIO().Framerate);
+    static int b = 0;
+    ImGui::Text("Counter: %.2f", m_runTime);
+
+
+    ImGui_ImplGlfwVulkan_Render(commandBuffer);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::cleanUp()
 {
@@ -233,6 +271,16 @@ void vkContext::cleanUp()
         }
     }
 
+    if(m_graphics.renderpassImGui != VK_NULL_HANDLE)
+    {
+        vkDestroyRenderPass(m_device, m_graphics.renderpassImGui, nullptr);
+    }
+
+    //if(m_graphics.pipelineImGui != VK_NULL_HANDLE)
+    //{
+    //    vkDestroyPipeline(m_device, m_graphics.pipelineImGui, nullptr);
+    //}
+
     if(m_graphics.descriptorSetLayout != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorSetLayout(m_device, m_graphics.descriptorSetLayout, nullptr);
@@ -277,6 +325,10 @@ void vkContext::cleanUp()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::cleanUpSwapchain()
 {
     vkQueueWaitIdle(m_queue);
@@ -319,6 +371,10 @@ void vkContext::cleanUpSwapchain()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::recreateSwapchain()
 {
     vkDeviceWaitIdle(m_device);
@@ -332,6 +388,10 @@ void vkContext::recreateSwapchain()
     createPipeline();
     recordCommandBuffers();
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createInstance()
 {
@@ -367,22 +427,11 @@ void vkContext::createInstance()
     createInfo.ppEnabledExtensionNames = extensions.data();
 
     VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &m_instance));
-
-    //spdlog::set_pattern("%^[%T] %n: %v%$﻿");
-
-    spdlog::info("vkInstance({}) created.", (uint64_t)m_instance);
-    spdlog::info("Linked extensions:");
-    for(const auto& e : extensions)
-    {
-        //spdlog::info("{}", *e);
-        std::cout << "\t" << e << "\n";
-    }
-    spdlog::info("Linked layers:");
-    for(const auto& l : layers)
-    {
-        std::cout << "\t" << l << "\n";
-    }
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::selectPhysicalDevice()
 {
@@ -391,13 +440,13 @@ void vkContext::selectPhysicalDevice()
     m_gpu.physicalDevices.resize(physicalDeviceCount);
     vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, m_gpu.physicalDevices.data());
 
-    std::cout << "Found ( " << physicalDeviceCount << " ) GPUs supporting vulkan" << std::endl;
+    //std::cout << "Found ( " << physicalDeviceCount << " ) GPUs supporting vulkan" << std::endl;
 
     for(const auto& deviceCtx : m_gpu.physicalDevices)
     {
         VkPhysicalDeviceProperties deviceProperties;
         vkGetPhysicalDeviceProperties(deviceCtx, &deviceProperties);
-        std::cout << "===== " << deviceProperties.deviceName << " =====" << std::endl;
+        //std::cout << "===== " << deviceProperties.deviceName << " =====" << std::endl;
 
         VkPhysicalDeviceMemoryProperties memoryProperties;
         vkGetPhysicalDeviceMemoryProperties(deviceCtx, &memoryProperties);
@@ -408,29 +457,29 @@ void vkContext::selectPhysicalDevice()
         vkGetPhysicalDeviceQueueFamilyProperties(deviceCtx, &queueFamilyPropertyCount,
                                                  m_gpu.queueFamilyProperties.data());
 
-        std::cout << std::endl;
-        std::cout << "Found ( " << queueFamilyPropertyCount << " ) queue families" << std::endl;
-        for(uint32_t i = 0; i < queueFamilyPropertyCount; ++i)
-        {
-            std::cout << "\tQueue family [" << i << "] supports following operations:" << std::endl;
-            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                std::cout << "\t\tVK_QUEUE_GRAPHICS_BIT" << std::endl;
-            }
-            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
-            {
-                std::cout << "\t\tVK_QUEUE_COMPUTE_BIT" << std::endl;
-            }
-            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
-            {
-                std::cout << "\t\tVK_QUEUE_TRANSFER_BIT" << std::endl;
-            }
-            if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
-            {
-                std::cout << "\t\tVK_QUEUE_SPARSE_BINDING_BIT" << std::endl;
-            }
-        }
-        std::cout << std::endl;
+        //std::cout << std::endl;
+        //std::cout << "Found ( " << queueFamilyPropertyCount << " ) queue families" << std::endl;
+        //for(uint32_t i = 0; i < queueFamilyPropertyCount; ++i)
+        //{
+        //    std::cout << "\tQueue family [" << i << "] supports following operations:" << std::endl;
+        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        //    {
+        //        std::cout << "\t\tVK_QUEUE_GRAPHICS_BIT" << std::endl;
+        //    }
+        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+        //    {
+        //        std::cout << "\t\tVK_QUEUE_COMPUTE_BIT" << std::endl;
+        //    }
+        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
+        //    {
+        //        std::cout << "\t\tVK_QUEUE_TRANSFER_BIT" << std::endl;
+        //    }
+        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
+        //    {
+        //        std::cout << "\t\tVK_QUEUE_SPARSE_BINDING_BIT" << std::endl;
+        //    }
+        //}
+        //std::cout << std::endl;
     }
 
     // TODO: check if GPU is discrete, just pick first one for now
@@ -439,6 +488,10 @@ void vkContext::selectPhysicalDevice()
     vkGetPhysicalDeviceFeatures(m_gpu.physicalDevice, &m_gpu.features);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createSurface()
 {
     VK_CHECK_RESULT(
@@ -446,6 +499,10 @@ void vkContext::createSurface()
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_gpu.physicalDevice, m_surface.surface,
                                               &m_surface.surfaceCapabilities);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::findQueueFamilyIndices()
 {
@@ -479,6 +536,10 @@ void vkContext::findQueueFamilyIndices()
         }
     }
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createLogicalDevice()
 {
@@ -529,6 +590,10 @@ void vkContext::createLogicalDevice()
     VK_CHECK_RESULT(vmaCreateAllocator(&allocatorInfo, &m_allocator));
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createSynchronizationPrimitives()
 {
     VkSemaphoreCreateInfo createInfo = {};
@@ -540,6 +605,10 @@ void vkContext::createSynchronizationPrimitives()
     VK_CHECK_RESULT(
         vkCreateSemaphore(m_device, &createInfo, nullptr, &m_graphics.renderingFinishedSemaphore));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createSwapchain()
 {
@@ -626,6 +695,10 @@ void vkContext::createSwapchain()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createCommandPools()
 {
     VkCommandPoolCreateInfo createInfo = {};
@@ -635,6 +708,10 @@ void vkContext::createCommandPools()
 
     VK_CHECK_RESULT(vkCreateCommandPool(m_device, &createInfo, nullptr, &m_graphics.commandPool));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createCommandBuffers()
 {
@@ -651,6 +728,10 @@ void vkContext::createCommandBuffers()
     m_rtCommandBuffers.resize(m_swapchain.frameBuffers.size());
     VK_CHECK_RESULT(vkAllocateCommandBuffers(m_device, &allocInfo, m_rtCommandBuffers.data()));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createDepthResources()
 {
@@ -704,6 +785,10 @@ void vkContext::createDepthResources()
     endSingleTimeCommands(commandBuffer);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createRenderPass()
 {
     std::array<VkAttachmentDescription, 2> attachments = {};
@@ -736,14 +821,19 @@ void vkContext::createRenderPass()
     references[1].attachment = 1;
     references[1].layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &references[0];
+    std::array<VkSubpassDescription, 2> subpasses = {};
+    subpasses[0].pipelineBindPoint                = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[0].colorAttachmentCount             = 1;
+    subpasses[0].pColorAttachments                = &references[0];
+    subpasses[0].pDepthStencilAttachment          = &references[1];
+
+    subpasses[1].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[1].colorAttachmentCount    = 1;
+    subpasses[1].pColorAttachments       = &references[0];
+    subpasses[1].pDepthStencilAttachment = &references[1];
 
 
     //subpass.pDepthStencilAttachment = nullptr;
-    subpass.pDepthStencilAttachment = &references[1];
 
     std::array<VkSubpassDependency, 2> dependencies = {};
 
@@ -755,12 +845,12 @@ void vkContext::createRenderPass()
     dependencies[0].dstAccessMask   = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    dependencies[1].srcSubpass      = 0;
-    dependencies[1].dstSubpass      = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    dependencies[1].srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[1].srcSubpass    = 0;
+    dependencies[1].dstSubpass    = VK_SUBPASS_EXTERNAL;  // =VK_SUBPASS_EXTERNAL; // ImGui Subpass
+    dependencies[1].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 
@@ -769,12 +859,29 @@ void vkContext::createRenderPass()
     renderpassInfo.attachmentCount        = static_cast<uint32_t>(attachments.size());
     renderpassInfo.pAttachments           = attachments.data();
     renderpassInfo.subpassCount           = 1;
-    renderpassInfo.pSubpasses             = &subpass;
-    renderpassInfo.dependencyCount        = static_cast<uint32_t>(dependencies.size());
-    renderpassInfo.pDependencies          = dependencies.data();
+    //renderpassInfo.subpassCount    = static_cast<uint32_t>(subpasses.size());  // ImGui
+    renderpassInfo.pSubpasses      = subpasses.data();
+    renderpassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    renderpassInfo.pDependencies   = dependencies.data();
 
     VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_graphics.renderpass));
+
+    {  // Imgui renderpass
+
+        // Dont clear, draw ImGui on top of previous framebuffer contents
+        attachments[0].loadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        attachments[0].finalLayout   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VK_CHECK_RESULT(
+            vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_graphics.renderpassImGui));
+    }
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createFrameBuffers()
 {
@@ -798,6 +905,10 @@ void vkContext::createFrameBuffers()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createUniformBuffers()
 {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -817,6 +928,10 @@ void vkContext::createUniformBuffers()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::updateGraphicsUniforms()
 {
     UniformBufferObject ubo;
@@ -835,6 +950,10 @@ void vkContext::updateGraphicsUniforms()
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage]);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createPipeline()
 {
@@ -986,6 +1105,10 @@ void vkContext::createPipeline()
     vkDestroyShaderModule(m_device, fragmentShader, nullptr);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createDescriptorPool()
 {
     std::array<VkDescriptorPoolSize, 3> poolSizes = {};
@@ -1015,6 +1138,10 @@ void vkContext::createDescriptorPool()
     VK_CHECK_RESULT(
         vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_graphics.descriptorPool));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::setupGraphicsDescriptors()
 {
@@ -1141,6 +1268,10 @@ void vkContext::setupGraphicsDescriptors()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::recordCommandBuffers()
 {
     VkCommandBufferBeginInfo beginInfo = {};
@@ -1255,6 +1386,10 @@ void vkContext::recordCommandBuffers()
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createVertexAndIndexBuffers(const std::vector<VkTools::VertexPNTC>& vertices,
                                             const std::vector<uint32_t>&            indices,
                                             VkBuffer*                               vertexBuffer,
@@ -1308,6 +1443,10 @@ void vkContext::createVertexAndIndexBuffers(const std::vector<VkTools::VertexPNT
     vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -1322,6 +1461,11 @@ void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize 
     endSingleTimeCommands(commandBuffer);
 }
 
+
+// ----------------------------------------------------------------------------
+//  Error callback for ImGui
+//
+
 void check_vk_result(VkResult res)
 {
     if(res == VK_SUCCESS)
@@ -1335,6 +1479,10 @@ void check_vk_result(VkResult res)
     }
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::initDearImGui()
 {
     IMGUI_CHECKVERSION();
@@ -1344,12 +1492,12 @@ void vkContext::initDearImGui()
     initInfo.allocator                      = VK_NULL_HANDLE;
     initInfo.gpu                            = m_gpu.physicalDevice;
     initInfo.device                         = m_device;
-    initInfo.render_pass                    = m_graphics.renderpass;
+    initInfo.render_pass                    = m_graphics.renderpassImGui;
     initInfo.pipeline_cache                 = VK_NULL_HANDLE;
     initInfo.descriptor_pool                = m_graphics.descriptorPool;
     initInfo.check_vk_result                = check_vk_result;
 
-    ImGui_ImplGlfwVulkan_Init(m_window->getWindow(), true, &initInfo);
+    ImGui_ImplGlfwVulkan_Init(m_window->getWindow(), false, &initInfo);
 
     ImGui::StyleColorsDark();
 
@@ -1361,7 +1509,7 @@ void vkContext::initDearImGui()
 }
 
 // ------------------------------------------------------------------------------
-//  Copy data to GPU memory
+//  Copy data to VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 //
 template <typename T>
 inline void vkContext::createBufferWithStaging(std::vector<T>        src,
@@ -1372,7 +1520,6 @@ inline void vkContext::createBufferWithStaging(std::vector<T>        src,
     VkBuffer      stagingBuffer;
     VmaAllocation stagingBufferMemory;
 
-    // Vertices
     VkDeviceSize bufferSize = sizeof(src[0]) * src.size();
     createBuffer(m_allocator, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VMA_MEMORY_USAGE_CPU_ONLY,
@@ -1392,6 +1539,10 @@ inline void vkContext::createBufferWithStaging(std::vector<T>        src,
 
     vmaDestroyBuffer(m_allocator, stagingBuffer, stagingBufferMemory);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 VkCommandBuffer vkContext::beginSingleTimeCommands()
 {
@@ -1413,6 +1564,10 @@ VkCommandBuffer vkContext::beginSingleTimeCommands()
     return commandBuffer;
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::endSingleTimeCommands(VkCommandBuffer commandBuffer)
 {
     vkEndCommandBuffer(commandBuffer);
@@ -1428,6 +1583,42 @@ void vkContext::endSingleTimeCommands(VkCommandBuffer commandBuffer)
     vkFreeCommandBuffers(m_device, m_graphics.commandPool, 1, &commandBuffer);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
+void vkContext::beginRenderPass(VkCommandBuffer commandBuffer, VkRenderPass renderpass)
+{
+    std::array<VkClearValue, 2> clearValues = {};
+    clearValues[0].color                    = {0.0f, 0.0f, 0.0f, 0.0f};
+    clearValues[1].depthStencil             = {1.0f, 0};
+
+    VkRenderPassBeginInfo beginInfo = {};
+
+    beginInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    beginInfo.pNext             = nullptr;
+    beginInfo.renderPass        = renderpass;
+    beginInfo.framebuffer       = m_swapchain.frameBuffers[m_currentImage];
+    beginInfo.renderArea.extent = m_swapchain.extent;
+    beginInfo.clearValueCount   = static_cast<uint32_t>(clearValues.size());
+    beginInfo.pClearValues      = clearValues.data();
+
+    vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+void vkContext::endRenderPass(VkCommandBuffer commandBuffer)
+{
+    vkCmdEndRenderPass(commandBuffer);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::LoadModelFromFile(const std::string& objPath)
 {
 
@@ -1439,6 +1630,10 @@ void vkContext::LoadModelFromFile(const std::string& objPath)
     //createVertexAndIndexBuffers(model.m_vertices, model.m_indices, &model.m_vertexBuffer,
     //                            &model.m_vertexMemory, &model.m_indexBuffer, &model.m_indexMemory);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::initRaytracing()
 {
@@ -1461,6 +1656,10 @@ void vkContext::initRaytracing()
     vkGetPhysicalDeviceProperties2(m_gpu.physicalDevice, &properties);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createGeometryInstances()
 {
     GeometryInstance instance;
@@ -1474,6 +1673,10 @@ void vkContext::createGeometryInstances()
 
     m_GeometryInstances.push_back(instance);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     VkCommandBuffer               commandBuffer,
@@ -1523,6 +1726,10 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     return buffers;
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createTopLevelAS(
     VkCommandBuffer                                                     commandBuffer,
     const std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>>& instances,
@@ -1571,6 +1778,10 @@ void vkContext::createTopLevelAS(
                                    updateOnly ? m_TopLevelAS.structure : VK_NULL_HANDLE);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::createAccelerationStructures()
 {
 
@@ -1595,6 +1806,10 @@ void vkContext::createAccelerationStructures()
 
     endSingleTimeCommands(commandBuffer);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
 {
@@ -1627,6 +1842,10 @@ void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
         vkDestroyAccelerationStructureNV(m_device, as.structure, nullptr);
     }
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createRaytracingDescriptorSet()
 {
@@ -1742,6 +1961,10 @@ void vkContext::createRaytracingDescriptorSet()
     m_rtDSG.UpdateSetContents(m_device, m_rtDescriptorSet);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void vkContext::updateRaytracingRenderTarget(VkImageView target)
 {
     VkDescriptorImageInfo imageInfo   = {};
@@ -1752,6 +1975,10 @@ void vkContext::updateRaytracingRenderTarget(VkImageView target)
     m_rtDSG.Bind(m_rtDescriptorSet, 1, {imageInfo});
     m_rtDSG.UpdateSetContents(m_device, m_rtDescriptorSet);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createRaytracingPipeline()
 {
@@ -1792,6 +2019,10 @@ void vkContext::createRaytracingPipeline()
     vkDestroyShaderModule(m_device, missShadowModule, nullptr);
     vkDestroyShaderModule(m_device, closestHitModule, nullptr);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void vkContext::createShaderBindingTable()
 {

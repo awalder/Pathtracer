@@ -448,6 +448,10 @@ void createTextureImage(VkDevice       device,
     vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 void createTextureSampler(VkDevice device, VkSampler* sampler)
 {
 
@@ -473,6 +477,10 @@ void createTextureSampler(VkDevice device, VkSampler* sampler)
 
     VK_CHECK_RESULT(vkCreateSampler(device, &createInfo, nullptr, sampler));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 std::string replaceSubString(const std::string& str, const std::string& from, const std::string& to) {
     return std::regex_replace(str, std::regex(from), to);

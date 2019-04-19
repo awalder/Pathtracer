@@ -57,6 +57,7 @@ class vkContext
 
     void mainLoop();
     void renderFrame();
+    void renderImGui(VkCommandBuffer commandBuffer);
     void cleanUp();
     void cleanUpSwapchain();
     void recreateSwapchain();
@@ -96,6 +97,9 @@ class vkContext
 
     VkCommandBuffer beginSingleTimeCommands();
     void            endSingleTimeCommands(VkCommandBuffer commandBuffer);
+
+    void beginRenderPass(VkCommandBuffer commandBuffer, VkRenderPass renderpass);
+    void endRenderPass(VkCommandBuffer commandBuffer);
 
     void LoadModelFromFile(const std::string& objPath);
 
@@ -193,6 +197,9 @@ class vkContext
         std::vector<VkBuffer>        uniformBuffers;
         std::vector<VmaAllocation>   uniformBufferAllocations;
         UniformBufferObject          ubo;
+
+        VkRenderPass                 renderpassImGui                 = VK_NULL_HANDLE;
+        //VkPipeline                   pipelineImGui       = VK_NULL_HANDLE;
 
         struct  // Depth
         {

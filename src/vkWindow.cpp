@@ -1,4 +1,5 @@
 #include "vkWindow.h"
+#include <imgui/imgui_impl_glfw_vulkan.h>
 #include <iostream>
 
 void vkWindow::initGLFW()
@@ -24,6 +25,8 @@ void vkWindow::initGLFW()
     glfwSetMouseButtonCallback(m_GLFWwindow, vkWindow::onMouseButtonCallback);
     glfwSetCursorPosCallback(m_GLFWwindow, vkWindow::onCursorPositionCallback);
     glfwSetScrollCallback(m_GLFWwindow, vkWindow::onMouseScrollCallback);
+
+    glfwSetCharCallback(m_GLFWwindow, ImGui_ImplGlfw_CharCallback);
 
     m_camera.initDefaults(static_cast<float>(m_WindowSize.width)
                           / static_cast<float>(m_WindowSize.height));
@@ -138,6 +141,7 @@ void vkWindow::onWindowResized(GLFWwindow* window, int width, int height)
 
 void vkWindow::onKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
 
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -157,12 +161,26 @@ void vkWindow::onKeyCallback(GLFWwindow* window, int key, int scancode, int acti
 
 void vkWindow::onCursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 {
+    ImGuiIO& io = ImGui::GetIO();
+    if(io.WantCaptureMouse || io.WantCaptureKeyboard)
+    {
+        return;
+    }
+
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
     app->handleMouseCursorInput(xpos, ypos);
 }
 
 void vkWindow::onMouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    ImGuiIO& io = ImGui::GetIO();
+    if(io.WantCaptureMouse)
+    {
+        return;
+    }
+
+
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
     if(action == GLFW_PRESS)
     {
@@ -184,6 +202,13 @@ void vkWindow::onMouseButtonCallback(GLFWwindow* window, int button, int action,
 
 void vkWindow::onMouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+    ImGuiIO& io = ImGui::GetIO();
+    if(io.WantCaptureMouse)
+    {
+        return;
+    }
+
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
     app->handleMouseScrollInput(xoffset, yoffset);
 }

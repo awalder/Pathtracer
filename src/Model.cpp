@@ -43,10 +43,6 @@ void VkTools::Model::cleanUp()
             vkDestroySampler(vkctx->getDevice(), t.sampler, nullptr);
         }
     }
-    //if(textureBuffer != VK_NULL_HANDLE)
-    //{
-    //    vmaDestroyBuffer(vkctx->getAllocator(), textureBuffer, textureMemory);
-    //}
 }
 
 void VkTools::Model::LoadModelFromFile(const std::string& filepath)
