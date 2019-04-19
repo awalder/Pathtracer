@@ -1,8 +1,17 @@
 ﻿#include "vkContext.h"
 
 #include <array>
-#include <spdlog/spdlog.h>
 #include <chrono>
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <spdlog/spdlog.h>
+
+//#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw_vulkan.h>
+//#include <imgui/imgui_impl_glfw.h>
+//#include <imgui/imgui_impl_vulkan.h>
+
+#define IMGUI_MIN_IMAGE_COUNT 2
 
 void vkContext::initVulkan()
 {
@@ -27,10 +36,9 @@ void vkContext::initVulkan()
     createCommandBuffers();
     createUniformBuffers();
 
-    createDescriptorPool();
-    setupGraphicsDescriptors();
+    LoadModelFromFile("../../scenes/cornell/cornell.obj");
+    //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
-    createPipeline();
     //createVertexAndIndexBuffers();
 
     //initRaytracing();
@@ -44,15 +52,19 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/vulkanScene/vulkanscenemodels.dae");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    LoadModelFromFile("../../scenes/living_room/living_room.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
+    //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
-    //LoadModelFromFile("../../scenes/sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
-    //LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
+
+    createDescriptorPool();
+    setupGraphicsDescriptors();
+    createPipeline();
+    initDearImGui();
 
     recordCommandBuffers();
 }
@@ -62,16 +74,26 @@ void vkContext::mainLoop()
     if(!m_window)
         return;
 
+    auto programStartTime = std::chrono::high_resolution_clock::now();
     while(m_window->isOpen())
     {
         auto startTime = std::chrono::high_resolution_clock::now();
 
         m_window->pollEvents();
         m_window->update(m_deltaTime);
+
+        ImGui_ImplGlfwVulkan_NewFrame();
+        ImGui::ShowDemoWindow();
+
+
         renderFrame();
 
         auto endTime = std::chrono::high_resolution_clock::now();
-        m_deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(endTime - startTime).count();
+        m_deltaTime =
+            std::chrono::duration<float, std::chrono::seconds::period>(endTime - startTime).count();
+        m_runTime =
+            std::chrono::duration<float, std::chrono::seconds::period>(endTime - programStartTime)
+                .count();
     }
 }
 
@@ -88,6 +110,14 @@ void vkContext::renderFrame()
 
     m_currentImage = imageIndex;
     updateGraphicsUniforms();
+
+    {  // ImGui
+        //vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+        //VkCommandBuffer cmdBuf = m_swapchain.commandBuffers[imageIndex];
+        VkCommandBuffer cmdBuf = beginSingleTimeCommands();
+        ImGui_ImplGlfwVulkan_Render(cmdBuf);
+        endSingleTimeCommands(cmdBuf);
+    }
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
@@ -141,6 +171,8 @@ void vkContext::cleanUp()
 
 
     destroyAccelerationStructures(m_TopLevelAS);
+    ImGui_ImplGlfwVulkan_Shutdown();
+    //ImGui_ImplGlfw_Shutdown();
 
     for(auto& m : m_models)
     {
@@ -462,13 +494,21 @@ void vkContext::createLogicalDevice()
     queueInfo.pQueuePriorities = queuePriority;
 
     // Add requested features here
-    VkPhysicalDeviceFeatures requestedDeviceFeatures = {};
+    VkPhysicalDeviceDescriptorIndexingFeaturesEXT descFeatures = {};
+    descFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+
+    VkPhysicalDeviceFeatures2 requestedDeviceFeatures = {};
+    requestedDeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    requestedDeviceFeatures.pNext = &descFeatures;
+    //requestedDeviceFeatures.features.fragmentStoresAndAtomics = VK_TRUE;
+
+    vkGetPhysicalDeviceFeatures2(m_gpu.physicalDevice, &requestedDeviceFeatures);
 
     const auto extensions = m_debugAndExtensions->getRequiredDeviceExtensions();
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType              = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pNext;
+    createInfo.pNext              = &descFeatures;
     createInfo.flags;
     createInfo.queueCreateInfoCount    = 1;
     createInfo.pQueueCreateInfos       = &queueInfo;
@@ -476,7 +516,7 @@ void vkContext::createLogicalDevice()
     createInfo.ppEnabledLayerNames     = nullptr;
     createInfo.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
-    createInfo.pEnabledFeatures        = &requestedDeviceFeatures;
+    createInfo.pEnabledFeatures        = &requestedDeviceFeatures.features;
 
     VK_CHECK_RESULT(vkCreateDevice(m_gpu.physicalDevice, &createInfo, nullptr, &m_device));
 
@@ -779,28 +819,13 @@ void vkContext::createUniformBuffers()
 
 void vkContext::updateGraphicsUniforms()
 {
-    //static auto startTime = std::chrono::high_resolution_clock::now();
-
-    //auto  currentTime = std::chrono::high_resolution_clock::now();
-    //float time =
-    //    std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    //float aspect = m_swapchain.extent.width / static_cast<float>(m_swapchain.extent.height);
-
-    //float fov = 45.0f;
-
-    //UniformBufferObject ubo;
-    //ubo.model =
-    //    glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0, 1.0f));
-    //ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-    //                       glm::vec3(0.0f, 0.0f, 1.0f));
-    //ubo.proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 10.0f);
-
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
+    ubo.model = glm::rotate(glm::radians(m_runTime), glm::vec3(0.0f, 1.0f, 0.0f));
     ubo.view  = m_window->m_camera.matrices.view;
     ubo.proj  = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;
+    ubo.modelIT = glm::inverseTranspose(ubo.model);
 
     ubo.viewInverse = glm::inverse(ubo.view);
     ubo.projInverse = glm::inverse(ubo.proj);
@@ -963,18 +988,27 @@ void vkContext::createPipeline()
 
 void vkContext::createDescriptorPool()
 {
-    std::array<VkDescriptorPoolSize, 1> poolSizes = {};
+    std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 
     // UBO
     poolSizes[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
 
+    poolSizes[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = 1000;
+    //poolSizes[1].descriptorCount = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
+
+    poolSizes[2].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = 1000;
+
     VkDescriptorPoolCreateInfo poolInfo = {};
 
-    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.pNext         = nullptr;
-    poolInfo.flags         = 0;
-    poolInfo.maxSets       = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.pNext = nullptr;
+    poolInfo.flags = 0;
+
+    // Few extra sets for ImGui
+    poolInfo.maxSets       = static_cast<uint32_t>(m_swapchain.frameBuffers.size() + 10);
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes    = poolSizes.data();
 
@@ -984,13 +1018,31 @@ void vkContext::createDescriptorPool()
 
 void vkContext::setupGraphicsDescriptors()
 {
-    std::array<VkDescriptorSetLayoutBinding, 1> bindings = {};
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings = {};
 
     bindings[0].binding            = 0;
     bindings[0].descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     bindings[0].descriptorCount    = 1;
     bindings[0].stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
     bindings[0].pImmutableSamplers = nullptr;
+
+    bindings[1].binding            = 1;
+    bindings[1].descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[1].descriptorCount    = 1;
+    bindings[1].stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[1].pImmutableSamplers = nullptr;
+
+    uint32_t textureDescriptorCount = 0;
+    for(const auto& m : m_models)
+    {
+        textureDescriptorCount += static_cast<uint32_t>(m.m_textures.size());
+    }
+
+    bindings[2].binding            = 2;
+    bindings[2].descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[2].descriptorCount    = textureDescriptorCount;
+    bindings[2].stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[2].pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = {};
     layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1020,24 +1072,72 @@ void vkContext::setupGraphicsDescriptors()
 
     for(size_t i = 0; i < m_swapchain.images.size(); ++i)
     {
-        VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer                 = m_graphics.uniformBuffers[i];
-        bufferInfo.offset                 = 0;
-        bufferInfo.range                  = sizeof(UniformBufferObject);
+        std::array<VkDescriptorBufferInfo, 2> bufferInfos = {};
 
-        VkWriteDescriptorSet descriptorWrite = {};
-        descriptorWrite.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.pNext                = nullptr;
-        descriptorWrite.dstSet               = m_graphics.descriptorSets[i];
-        descriptorWrite.dstBinding           = 0;
-        descriptorWrite.dstArrayElement      = 0;
-        descriptorWrite.descriptorCount      = 1;
-        descriptorWrite.descriptorType       = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.pImageInfo           = nullptr;
-        descriptorWrite.pBufferInfo          = &bufferInfo;
-        descriptorWrite.pTexelBufferView     = nullptr;
+        bufferInfos[0].buffer = m_graphics.uniformBuffers[i];
+        bufferInfos[0].offset = 0;
+        bufferInfos[0].range  = VK_WHOLE_SIZE;
 
-        vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+        bufferInfos[1].buffer = m_models[0].materialBuffer;
+        bufferInfos[1].offset = 0;
+        bufferInfos[1].range  = VK_WHOLE_SIZE;
+
+        std::vector<VkDescriptorImageInfo> imageInfos;
+        VkDescriptorImageInfo              imageInfo = {};
+
+        for(size_t i = 0; i < m_models.size(); ++i)
+        {
+            const auto& model = m_models[i];
+            for(size_t j = 0; j < model.m_textures.size(); ++j)
+            {
+                const auto& texture   = model.m_textures[j];
+                imageInfo.sampler     = texture.sampler;
+                imageInfo.imageView   = texture.view;
+                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfos.push_back(imageInfo);
+            }
+        }
+
+        std::array<VkWriteDescriptorSet, 3> writeDescriptors = {};
+
+        // UBO matrices
+        writeDescriptors[0].sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptors[0].pNext            = nullptr;
+        writeDescriptors[0].dstSet           = m_graphics.descriptorSets[i];
+        writeDescriptors[0].dstArrayElement  = 0;
+        writeDescriptors[0].descriptorCount  = 1;
+        writeDescriptors[0].pImageInfo       = nullptr;
+        writeDescriptors[0].pTexelBufferView = nullptr;
+        writeDescriptors[0].dstBinding       = 0;
+        writeDescriptors[0].descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptors[0].pBufferInfo      = &bufferInfos[0];
+
+        // Materials
+        writeDescriptors[1].sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptors[1].pNext            = nullptr;
+        writeDescriptors[1].dstSet           = m_graphics.descriptorSets[i];
+        writeDescriptors[1].dstArrayElement  = 0;
+        writeDescriptors[1].descriptorCount  = 1;
+        writeDescriptors[1].pImageInfo       = nullptr;
+        writeDescriptors[1].pTexelBufferView = nullptr;
+        writeDescriptors[1].dstBinding       = 1;
+        writeDescriptors[1].descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writeDescriptors[1].pBufferInfo      = &bufferInfos[1];
+
+        // Textures
+        writeDescriptors[2].sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptors[2].pNext            = nullptr;
+        writeDescriptors[2].dstSet           = m_graphics.descriptorSets[i];
+        writeDescriptors[2].dstArrayElement  = 0;
+        writeDescriptors[2].descriptorCount  = static_cast<uint32_t>(imageInfos.size());
+        writeDescriptors[2].pImageInfo       = imageInfos.data();
+        writeDescriptors[2].pTexelBufferView = nullptr;
+        writeDescriptors[2].dstBinding       = 2;
+        writeDescriptors[2].descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writeDescriptors[2].pBufferInfo      = nullptr;
+
+        vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptors.size()),
+                               writeDescriptors.data(), 0, nullptr);
     }
 }
 
@@ -1094,11 +1194,12 @@ void vkContext::recordCommandBuffers()
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
 
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_graphics.pipelineLayout, 0, 1, &m_graphics.descriptorSets[i],
+                                    0, nullptr);
+
             for(const auto& m : m_models)
             {
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        m_graphics.pipelineLayout, 0, 1,
-                                        &m_graphics.descriptorSets[i], 0, nullptr);
 
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m.vertexBuffer, offsets);
 
@@ -1106,7 +1207,6 @@ void vkContext::recordCommandBuffers()
 
                 vkCmdDrawIndexed(commandBuffer, m.numIndices, 1, 0, 0, 0);
             }
-
 
             vkCmdEndRenderPass(commandBuffer);
 
@@ -1220,6 +1320,44 @@ void vkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize 
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
     endSingleTimeCommands(commandBuffer);
+}
+
+void check_vk_result(VkResult res)
+{
+    if(res == VK_SUCCESS)
+    {
+        return;
+    }
+    if(res < 0)
+    {
+        std::cerr << "VkResult: " << res << "\n";
+        throw std::runtime_error("ImGui check_result");
+    }
+}
+
+void vkContext::initDearImGui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
+    ImGui_ImplGlfwVulkan_Init_Data initInfo = {};
+    initInfo.allocator                      = VK_NULL_HANDLE;
+    initInfo.gpu                            = m_gpu.physicalDevice;
+    initInfo.device                         = m_device;
+    initInfo.render_pass                    = m_graphics.renderpass;
+    initInfo.pipeline_cache                 = VK_NULL_HANDLE;
+    initInfo.descriptor_pool                = m_graphics.descriptorPool;
+    initInfo.check_vk_result                = check_vk_result;
+
+    ImGui_ImplGlfwVulkan_Init(m_window->getWindow(), true, &initInfo);
+
+    ImGui::StyleColorsDark();
+
+    //ImGuiIO& io = ImGui::GetIO();
+
+    VkCommandBuffer cmdBuf = beginSingleTimeCommands();
+    ImGui_ImplGlfwVulkan_CreateFontsTexture(cmdBuf);
+    endSingleTimeCommands(cmdBuf);
 }
 
 // ------------------------------------------------------------------------------

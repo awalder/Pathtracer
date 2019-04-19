@@ -86,6 +86,7 @@ class vkContext
                                      VkBuffer*                               indexBuffer,
                                      VmaAllocation*                          indexMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void initDearImGui();
 
     template <typename T>
     void createBufferWithStaging(std::vector<T>        src,
@@ -142,6 +143,7 @@ class vkContext
     VmaAllocator                          m_allocator         = VK_NULL_HANDLE;
     VkQueue                               m_queue             = VK_NULL_HANDLE;
     float                                 m_deltaTime         = 0.00001f;
+    float                                 m_runTime           = 0.00000f;
 
     std::vector<VkTools::Model> m_models;
 

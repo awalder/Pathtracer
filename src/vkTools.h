@@ -4,6 +4,8 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <string>
+#include <regex>
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
@@ -23,7 +25,10 @@ const char*       errorString(VkResult res);
 std::vector<char> loadShader(const char* path);
 VkShaderModule    createShaderModule(const std::string& path, VkDevice deviceCtx);
 VkCommandBuffer   beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool);
-void              flushCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer commandBuffer);
+void              flushCommandBuffer(VkDevice        device,
+                                     VkQueue         queue,
+                                     VkCommandPool   pool,
+                                     VkCommandBuffer commandBuffer);
 
 
 void createBuffer(VmaAllocator          allocator,
@@ -45,19 +50,34 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
                         uint32_t              typeFilter,
                         VkMemoryPropertyFlags properties);
 
-void createImage(VmaAllocator             allocator,
-                 VkExtent2D               extent,
-                 VkFormat                 format,
-                 VkImageTiling            tiling,
-                 VkImageUsageFlags        usage,
-                 VmaMemoryUsage vmaMemoryUsage,
-                 VkImage*                 image,
-                 VmaAllocation*           imageMemory);
+void createImage(VmaAllocator      allocator,
+                 VkExtent2D        extent,
+                 VkFormat          format,
+                 VkImageTiling     tiling,
+                 VkImageUsageFlags usage,
+                 VmaMemoryUsage    vmaMemoryUsage,
+                 VkImage*          image,
+                 VmaAllocation*    imageMemory);
 
 VkImageView createImageView(VkDevice           device,
                             VkImage            image,
                             VkFormat           format,
                             VkImageAspectFlags aspect);
+
+
+void createTextureImage(VkDevice       device,
+                        VmaAllocator   allocator,
+                        VkQueue        queue,
+                        VkCommandPool  pool,
+                        uint8_t*       pixels,
+                        int            width,
+                        int            height,
+                        VkImage*       textureImage,
+                        VmaAllocation* textureMemory);
+
+void createTextureSampler(VkDevice device, VkSampler* sampler);
+
+std::string replaceSubString(const std::string& str, const std::string& from, const std::string& to);
 
 
 }  // namespace VkTools

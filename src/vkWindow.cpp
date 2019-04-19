@@ -1,8 +1,15 @@
 #include "vkWindow.h"
+#include <iostream>
 
 void vkWindow::initGLFW()
 {
+    glfwSetErrorCallback(onErrorCallback);
     glfwInit();
+
+    if(!glfwVulkanSupported())
+    {
+        throw std::runtime_error("GLFW: Vulkan is not supported\n");
+    }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -108,6 +115,11 @@ void vkWindow::handleMouseCursorInput(double xpos, double ypos)
 void vkWindow::handleMouseScrollInput(double xpos, double ypos)
 {
     m_camera.updateScroll(ypos);
+}
+
+void vkWindow::onErrorCallback(int error, const char* description)
+{
+    fprintf(stderr, "GLFW Error %d: %s\n");
 }
 
 void vkWindow::onWindowResized(GLFWwindow* window, int width, int height)

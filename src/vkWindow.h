@@ -23,7 +23,10 @@ class vkWindow
 
     ~vkWindow()
     {
-        glfwDestroyWindow(m_GLFWwindow);
+        if(m_GLFWwindow != nullptr)
+        {
+            glfwDestroyWindow(m_GLFWwindow);
+        }
         glfwTerminate();
     }
 
@@ -38,9 +41,9 @@ class vkWindow
     CameraControls m_camera;
 
     private:
-    GLFWwindow*    m_GLFWwindow = nullptr;
-    vkContext*     m_vkContext  = nullptr;
-    VkExtent2D     m_WindowSize = {1024, 1024};
+    GLFWwindow* m_GLFWwindow = nullptr;
+    vkContext*  m_vkContext  = nullptr;
+    VkExtent2D  m_WindowSize = {1024, 1024};
 
 
     struct
@@ -68,6 +71,7 @@ class vkWindow
 
 
     // GLFW callback functions
+    static void onErrorCallback(int error, const char* description);
     static void onWindowResized(GLFWwindow* window, int width, int height);
     static void onKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void onCursorPositionCallback(GLFWwindow* window, double xpos, double ypos);

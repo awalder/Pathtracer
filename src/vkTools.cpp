@@ -2,6 +2,10 @@
 #include <fstream>
 
 namespace VkTools {
+// ----------------------------------------------------------------------------
+//
+//
+
 const char* deviceType(VkPhysicalDeviceType type)
 {
     switch(type)
@@ -123,6 +127,10 @@ const char* errorString(VkResult res)
             break;
     }
 }
+// ----------------------------------------------------------------------------
+//
+//
+
 std::vector<char> loadShader(const char* path)
 {
     std::ifstream file(path, std::ios::binary | std::ios::ate | std::ios::in);
@@ -141,6 +149,10 @@ std::vector<char> loadShader(const char* path)
     return buffer;
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
 {
     auto                     code       = loadShader(path.c_str());
@@ -154,6 +166,10 @@ VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
 
     return shaderModule;
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 VkCommandBuffer beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool)
 {
@@ -175,7 +191,15 @@ VkCommandBuffer beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool)
     return commandBuffer;
 }
 
-void flushCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer commandBuffer) {
+// ----------------------------------------------------------------------------
+//
+//
+
+void flushCommandBuffer(VkDevice        device,
+                        VkQueue         queue,
+                        VkCommandPool   pool,
+                        VkCommandBuffer commandBuffer)
+{
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo       = {};
@@ -188,6 +212,10 @@ void flushCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool pool, VkCo
 
     vkFreeCommandBuffers(device, pool, 1, &commandBuffer);
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void createBuffer(VmaAllocator          allocator,
                   VkDeviceSize          size,
@@ -216,6 +244,10 @@ void createBuffer(VmaAllocator          allocator,
     VK_CHECK_RESULT(
         vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, buffer, bufferMemory, nullptr));
 }
+
+// ----------------------------------------------------------------------------
+//
+//
 
 void createBufferNoVMA(VkDevice              device,
                        VkPhysicalDevice      physicalDevice,
@@ -248,6 +280,10 @@ void createBufferNoVMA(VkDevice              device,
 }
 
 
+// ----------------------------------------------------------------------------
+//
+//
+
 uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
                         uint32_t              typeFilter,
                         VkMemoryPropertyFlags properties)
@@ -267,14 +303,18 @@ uint32_t findMemoryType(VkPhysicalDevice      physicalDevice,
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void createImage(VmaAllocator             allocator,
-                 VkExtent2D               extent,
-                 VkFormat                 format,
-                 VkImageTiling            tiling,
-                 VkImageUsageFlags        usage,
-                 VmaMemoryUsage vmaMemoryUsage,
-                 VkImage*                 image,
-                 VmaAllocation*           imageMemory)
+// ----------------------------------------------------------------------------
+//
+//
+
+void createImage(VmaAllocator      allocator,
+                 VkExtent2D        extent,
+                 VkFormat          format,
+                 VkImageTiling     tiling,
+                 VkImageUsageFlags usage,
+                 VmaMemoryUsage    vmaMemoryUsage,
+                 VkImage*          image,
+                 VmaAllocation*    imageMemory)
 {
     VkImageCreateInfo imageInfo = {};
     imageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -301,6 +341,10 @@ void createImage(VmaAllocator             allocator,
     VK_CHECK_RESULT(vmaCreateImage(allocator, &imageInfo, &allocInfo, image, imageMemory, nullptr));
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 VkImageView createImageView(VkDevice           device,
                             VkImage            image,
                             VkFormat           format,
@@ -325,6 +369,113 @@ VkImageView createImageView(VkDevice           device,
     VkImageView imageView;
     VK_CHECK_RESULT(vkCreateImageView(device, &createInfo, nullptr, &imageView));
     return imageView;
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+void createTextureImage(VkDevice       device,
+                        VmaAllocator   allocator,
+                        VkQueue        queue,
+                        VkCommandPool  pool,
+                        uint8_t*       pixels,
+                        int            width,
+                        int            height,
+                        VkImage*       textureImage,
+                        VmaAllocation* textureMemory)
+{
+    VkDeviceSize imageSizeInBytes = width * height * 4;
+    VkExtent2D   imageSize{width, height};
+
+    VkBuffer      stagingBuffer;
+    VmaAllocation stagingBufferMemory;
+
+    // Vertices
+    VkTools::createBuffer(
+        allocator, imageSizeInBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer,
+        &stagingBufferMemory);
+
+    void* data;
+    vmaMapMemory(allocator, stagingBufferMemory, &data);
+    memcpy(data, pixels, imageSizeInBytes);
+    vmaUnmapMemory(allocator, stagingBufferMemory);
+    createImage(allocator, imageSize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VMA_MEMORY_USAGE_GPU_ONLY, textureImage, textureMemory);
+
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType                = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask        = 0;
+    barrier.dstAccessMask        = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.oldLayout            = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout            = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image                = *textureImage;
+    barrier.subresourceRange     = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    VkCommandBuffer commandBuffer = beginRecordingCommandBuffer(device, pool);
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    VkBufferImageCopy region  = {};
+    region.bufferOffset       = 0;
+    region.bufferRowLength    = 0;
+    region.bufferImageHeight  = 0;
+    region.imageSubresource   = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageOffset        = {0, 0, 0};
+    region.imageExtent.width  = width;
+    region.imageExtent.height = height;
+    region.imageExtent.depth  = 1;
+
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, *textureImage,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                         &barrier);
+
+    flushCommandBuffer(device, queue, pool, commandBuffer);
+    vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
+}
+
+void createTextureSampler(VkDevice device, VkSampler* sampler)
+{
+
+    VkSamplerCreateInfo createInfo = {};
+    createInfo.sType               = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    createInfo.pNext               = nullptr;
+    createInfo.flags               = 0;
+    createInfo.magFilter           = VK_FILTER_LINEAR;
+    createInfo.minFilter           = VK_FILTER_LINEAR;
+    createInfo.mipmapMode          = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    createInfo.addressModeU        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeV        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeW        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.mipLodBias          = 0.0f;
+    createInfo.anisotropyEnable    = VK_TRUE;
+    createInfo.maxAnisotropy       = 16.0f;
+    createInfo.compareEnable       = VK_FALSE;
+    createInfo.compareOp           = VK_COMPARE_OP_ALWAYS;
+    createInfo.minLod;
+    createInfo.maxLod;
+    createInfo.borderColor;
+    createInfo.unnormalizedCoordinates = VK_FALSE;
+
+    VK_CHECK_RESULT(vkCreateSampler(device, &createInfo, nullptr, sampler));
+}
+
+std::string replaceSubString(const std::string& str, const std::string& from, const std::string& to) {
+    return std::regex_replace(str, std::regex(from), to);
 }
 
 

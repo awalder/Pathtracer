@@ -28,6 +28,9 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_INSTALL_DIR ${CMAKE_SOURCE_DIR}/bin)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${NAME})
 
+# Dear ImGui source files
+file(GLOB IMGUI_SOURCES ${CMAKE_SOURCE_DIR}/external/imgui/*.cpp)
+
 add_executable(${NAME} src/main.cpp
                         src/vkContext.cpp
                         src/vkContext.h
@@ -52,7 +55,9 @@ add_executable(${NAME} src/main.cpp
                         src/vkRT_Pipeline.h
                         src/vkRT_DescriptorSets.cpp
                         src/vkRT_DescriptorSets.h
-                        src/implementations.cpp)
+                        src/implementations.cpp
+                        ${IMGUI_SOURCES})
+
 
 target_link_libraries(${NAME}
                       PRIVATE ${Vulkan_LIBRARY}
