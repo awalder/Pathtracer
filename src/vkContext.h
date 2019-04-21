@@ -121,18 +121,6 @@ class vkContext
         glm::mat4 projInverse;
     };
 
-    struct  // VertexData
-    {
-        VkBuffer      vertexBuffer             = VK_NULL_HANDLE;
-        VmaAllocation vertexBufferMemory       = VK_NULL_HANDLE;
-        VkBuffer      indexBuffer              = VK_NULL_HANDLE;
-        VmaAllocation indexBufferMemory        = VK_NULL_HANDLE;
-        VkBuffer      materialBuffer           = VK_NULL_HANDLE;
-        VmaAllocation materialBufferAllocation = VK_NULL_HANDLE;
-        uint32_t      nbVertices               = 0;
-        uint32_t      nbIndices                = 0;
-    } m_VertexData;
-
     //struct  // Models
     //{
     //    VkTools::Model model;
@@ -150,6 +138,18 @@ class vkContext
     float                                 m_runTime           = 0.00000f;
 
     std::vector<VkTools::Model> m_models;
+
+    struct  // Settings
+    {
+        bool RTX_ON = false;
+
+        // Camera class holds these values, set pointers over there
+        float* zNear;
+        float* zFar;
+        float* fov;
+
+
+    } m_settings;
 
     struct  // GPU
     {
@@ -185,12 +185,13 @@ class vkContext
 
     struct  // Graphics
     {
-        VkSemaphore                  imageAvailableSemaphore    = VK_NULL_HANDLE;
-        VkSemaphore                  renderingFinishedSemaphore = VK_NULL_HANDLE;
-        VkCommandPool                commandPool                = VK_NULL_HANDLE;
-        VkRenderPass                 renderpass                 = VK_NULL_HANDLE;
-        VkDescriptorPool             descriptorPool             = VK_NULL_HANDLE;
-        VkDescriptorSetLayout        descriptorSetLayout        = VK_NULL_HANDLE;
+        std::vector<VkSemaphore>     imageAvailableSemaphores;
+        std::vector<VkSemaphore>     renderingFinishedSemaphores;
+        std::vector<VkFence>         inFlightFences;
+        VkCommandPool                commandPool         = VK_NULL_HANDLE;
+        VkRenderPass                 renderpass          = VK_NULL_HANDLE;
+        VkDescriptorPool             descriptorPool      = VK_NULL_HANDLE;
+        VkDescriptorSetLayout        descriptorSetLayout = VK_NULL_HANDLE;
         std::vector<VkDescriptorSet> descriptorSets;
         VkPipelineLayout             pipelineLayout = VK_NULL_HANDLE;
         VkPipeline                   pipeline       = VK_NULL_HANDLE;
@@ -198,7 +199,7 @@ class vkContext
         std::vector<VmaAllocation>   uniformBufferAllocations;
         UniformBufferObject          ubo;
 
-        VkRenderPass                 renderpassImGui                 = VK_NULL_HANDLE;
+        VkRenderPass renderpassImGui = VK_NULL_HANDLE;
         //VkPipeline                   pipelineImGui       = VK_NULL_HANDLE;
 
         struct  // Depth
@@ -212,6 +213,7 @@ class vkContext
 
     // ------------------------------------------------------------------------
     //NV RTX
+
 
     struct GeometryInstance
     {
@@ -259,7 +261,7 @@ class vkContext
     VkPhysicalDeviceRayTracingPropertiesNV m_RaytracingProperties = {};
     std::vector<GeometryInstance>          m_GeometryInstances;
 
-    topLevelASGenerator                m_TopLevelASGenerator;
+    TopLevelASGenerator                m_TopLevelASGenerator;
     AccelerationStructure              m_TopLevelAS;
     std::vector<AccelerationStructure> m_BottomLevelAS;
 
@@ -268,12 +270,15 @@ class vkContext
     VkDescriptorSetLayout  m_rtDescriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet        m_rtDescriptorSet       = VK_NULL_HANDLE;
 
+    VkBuffer      m_rtUniformBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_rtUniformMemory = VK_NULL_HANDLE;
+
     std::vector<VkCommandBuffer> m_rtCommandBuffers;
 
-    std::vector<VkImage>       m_textureImage;
-    std::vector<VmaAllocation> m_textureImageMemory;
-    std::vector<VkImageView>   m_textureImageView;
-    std::vector<VkSampler>     m_textureSampler;
+    //std::vector<VkImage>       m_textureImage;
+    //std::vector<VmaAllocation> m_textureImageMemory;
+    //std::vector<VkImageView>   m_textureImageView;
+    //std::vector<VkSampler>     m_textureSampler;
 
 
     VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;

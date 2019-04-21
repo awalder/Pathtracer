@@ -21,10 +21,10 @@ class CameraControls
     float            getSpeed() const { return m_speed; }
     void             setSpeed(float v) { m_speed = v; }
     void             increaseSpeed(float v) { m_speed += v; }
-    float            getFov() const { return m_fov; }
-    void             setFov(float v) { m_fov = v; }
-    float            getNear() const { return m_near; }
-    void             setNear(float v) { m_near = v; }
+    //float            getFov() const { return m_fov; }
+    //void             setFov(float v) { m_fov = v; }
+    //float            getNear() const { return m_near; }
+    //void             setNear(float v) { m_near = v; }
 
     glm::mat3 getOrientation() const;
     glm::mat4 getCameraToWorld() const;
@@ -33,7 +33,12 @@ class CameraControls
     void updateMovements(float timeDelta, const glm::vec3& move);
     void updateMouseMovements(glm::vec2 rotate);
     void updateScroll(float v);
+    void update(float deltaTime);
 
+
+    float m_fov              = 65.0f;
+    float m_near             = 0.1f;
+    float m_far              = 1000.0f;
 
     private:
     void updateViewMatrix();
@@ -46,9 +51,6 @@ class CameraControls
     const glm::vec3 m_worldUp  = glm::vec3(0.0f, 1.0f, 0.0f);
 
     float m_speed            = 3.0f;
-    float m_fov              = 65.0f;
-    float m_near             = 0.1f;
-    float m_far              = 1000.0f;
     float m_mouseSensitivity = 0.3f;
     float m_aspect;
 

@@ -49,6 +49,7 @@ void vkWindow::update(float deltaTime)
         move.y -= 1.0f;
 
     m_camera.updateMovements(deltaTime, move);
+    m_camera.update(deltaTime);
 }
 
 void vkWindow::handleKeyboardInput(int key, bool isPressed)

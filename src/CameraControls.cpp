@@ -108,6 +108,11 @@ void CameraControls::updateScroll(float v)
     }
 }
 
+void CameraControls::update(float deltaTime)
+{
+    matrices.projection = glm::perspective(glm::radians(m_fov), m_aspect, m_near, m_far);
+}
+
 // ----------------------------------------------------------------------------
 //
 //

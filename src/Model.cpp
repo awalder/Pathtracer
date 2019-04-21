@@ -207,7 +207,8 @@ void VkTools::Model::createBuffers()
     vmaUnmapMemory(vkctx->getAllocator(), vStagingBufferMemory);
 
     VkTools::createBuffer(vkctx->getAllocator(), vertexBufferSizeInBytes,
-                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                              | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           &vertexBuffer, &vertexMemory);
 
@@ -225,7 +226,8 @@ void VkTools::Model::createBuffers()
     vmaUnmapMemory(vkctx->getAllocator(), iStagingBufferMemory);
 
     VkTools::createBuffer(vkctx->getAllocator(), indexBufferSizeInBytes,
-                          VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                              | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           &indexBuffer, &indexMemory);
 
@@ -242,7 +244,8 @@ void VkTools::Model::createBuffers()
     vmaUnmapMemory(vkctx->getAllocator(), mStagingBufferMemory);
 
     VkTools::createBuffer(vkctx->getAllocator(), materialBufferSizeInBytes,
-                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                              | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           &materialBuffer, &materialMemory);
 

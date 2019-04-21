@@ -45,8 +45,6 @@ add_executable(${NAME} src/main.cpp
                         src/CameraControls.cpp
                         src/CameraControls.h
                         src/vkRT_Import.cpp
-                        src/ImGuiOverlay.h
-                        src/ImGuiOverlay.cpp
                         src/vkRT_BLAS.cpp
                         src/vkRT_BLAS.h
                         src/vkRT_TLAS.cpp

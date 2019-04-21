@@ -12,6 +12,7 @@
 //#include <imgui/imgui_impl_vulkan.h>
 
 #define IMGUI_MIN_IMAGE_COUNT 2
+#define MAX_FRAMES_IN_FLIGHT 2
 
 // ----------------------------------------------------------------------------
 //
@@ -26,7 +27,10 @@ void vkContext::initVulkan()
 
     m_debugAndExtensions->init();
     createInstance();
-    m_debugAndExtensions->setupDebugMessenger(m_instance);
+    if(m_debugAndExtensions->isValidationLayersEnabled())
+    {
+        m_debugAndExtensions->setupDebugMessenger(m_instance);
+    }
     selectPhysicalDevice();
     createSurface();
     findQueueFamilyIndices();
@@ -40,30 +44,35 @@ void vkContext::initVulkan()
     createCommandBuffers();
     createUniformBuffers();
 
+    // Set pointers to values that are controlled by UI
+    m_settings.fov   = &m_window->m_camera.m_fov;
+    m_settings.zNear = &m_window->m_camera.m_near;
+    m_settings.zFar  = &m_window->m_camera.m_far;
+
     //LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
     //createVertexAndIndexBuffers();
 
-    //initRaytracing();
-    //createGeometryInstances();
-    //createAccelerationStructures();
-    //createRaytracingDescriptorSet();
-    //createRaytracingPipeline();
-    //createShaderBindingTable();
-
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
-    //LoadModelFromFile("../../scenes/vulkanScene/vulkanscenemodels.dae");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
+    LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
-    LoadModelFromFile("../../scenes/dragon/dragon.obj");
+    //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
+
+    initRaytracing();
+    createGeometryInstances();
+    createAccelerationStructures();
+    createRaytracingDescriptorSet();
+    createRaytracingPipeline();
+    createShaderBindingTable();
+
 
     createDescriptorPool();
     setupGraphicsDescriptors();
@@ -107,16 +116,21 @@ void vkContext::mainLoop()
 
 void vkContext::renderFrame()
 {
+    vkWaitForFences(m_device, 1, &m_graphics.inFlightFences[m_currentImage], VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device, 1, &m_graphics.inFlightFences[m_currentImage]);
+
     uint32_t imageIndex = 0;
     VkResult result =
         vkAcquireNextImageKHR(m_device, m_swapchain.swapchain, std::numeric_limits<uint64_t>::max(),
-                              m_graphics.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+                              m_graphics.imageAvailableSemaphores[m_currentImage], VK_NULL_HANDLE,
+                              &imageIndex);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         recreateSwapchain();
     }
 
-    m_currentImage = imageIndex;
+    updateRaytracingRenderTarget(m_swapchain.views[m_currentImage]);
+    //m_currentImage = imageIndex;
     updateGraphicsUniforms();
 
     // ImGui
@@ -132,29 +146,31 @@ void vkContext::renderFrame()
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-    std::array<VkCommandBuffer, 2> cmdBuffers = {m_swapchain.commandBuffers[imageIndex], cmdBuf};
+    std::array<VkCommandBuffer, 2> cmdBuffers   = {m_swapchain.commandBuffers[imageIndex], cmdBuf};
+    std::array<VkCommandBuffer, 2> cmdBuffersRT = {m_rtCommandBuffers[imageIndex], cmdBuf};
 
     VkSubmitInfo submitInfo       = {};
     submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores    = &m_graphics.imageAvailableSemaphore;
+    submitInfo.pWaitSemaphores    = &m_graphics.imageAvailableSemaphores[m_currentImage];
     submitInfo.pWaitDstStageMask  = waitStages;
     submitInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffers.size());
     //submitInfo.commandBufferCount   = 1;
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphore;
+    submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphores[m_currentImage];
 
-    if(m_renderMode_Raster)
+    if(!m_settings.RTX_ON)
     {
         submitInfo.pCommandBuffers = cmdBuffers.data();
         //submitInfo.pCommandBuffers = &m_swapchain.commandBuffers[imageIndex];
     }
     else
     {
-        submitInfo.pCommandBuffers = &m_rtCommandBuffers[imageIndex];
+        submitInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffersRT.size());
+        submitInfo.pCommandBuffers    = cmdBuffersRT.data();
     }
 
-    result = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
+    result = vkQueueSubmit(m_queue, 1, &submitInfo, m_graphics.inFlightFences[m_currentImage]);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         recreateSwapchain();
@@ -164,7 +180,7 @@ void vkContext::renderFrame()
     VkPresentInfoKHR presentInfo   = {};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &m_graphics.renderingFinishedSemaphore;
+    presentInfo.pWaitSemaphores    = &m_graphics.renderingFinishedSemaphores[m_currentImage];
     presentInfo.swapchainCount     = 1;
     presentInfo.pSwapchains        = &m_swapchain.swapchain;
     presentInfo.pImageIndices      = &imageIndex;
@@ -177,7 +193,8 @@ void vkContext::renderFrame()
     }
 
     // Poor solution, move to fences
-    vkQueueWaitIdle(m_queue);
+    //vkQueueWaitIdle(m_queue);
+    m_currentImage = (m_currentImage + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 // ----------------------------------------------------------------------------
@@ -186,15 +203,30 @@ void vkContext::renderFrame()
 
 void vkContext::renderImGui(VkCommandBuffer commandBuffer)
 {
+    static const ImVec2 windowSize(200.0f, 600.0f);
+    //std::min(600.0f, static_cast<float>(m_swapchain.extent.height)));
+    const ImVec2 windowPos(m_swapchain.extent.width, 0.0f);
+    //const ImVec2        windowPos(m_swapchain.extent.width - windowSize.x, 0.0f);
+
+
     ImGui_ImplGlfwVulkan_NewFrame();
-    ImGui::ShowDemoWindow();
+    //ImGui::ShowDemoWindow();
 
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
-                ImGui::GetIO().Framerate);
-    static int b = 0;
-    ImGui::Text("Counter: %.2f", m_runTime);
+    ImGui::Begin("Settings");
+    ImGui::SetWindowSize(windowSize, 0);
+    ImGui::SetNextWindowPos(windowPos, 0);
+
+    ImGui::Checkbox("RTX ON", &m_settings.RTX_ON);
+    ImGui::SliderFloat("zNear", m_settings.zNear, 0.001f, 100.0f, "%.3f", 4.0f);
+    ImGui::SliderFloat("zFar", m_settings.zFar, 0.1f, 100000.0f, "%.3f", 4.0f);
+    ImGui::SliderFloat("Fov", m_settings.fov, 1.0f, 179.0f, "%.3f", 1.0f);
+    ImGui::End();
 
 
+    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+    //            ImGui::GetIO().Framerate);
+    //static int b = 0;
+    //ImGui::Text("Counter: %.2f", m_runTime);
     ImGui_ImplGlfwVulkan_Render(commandBuffer);
 }
 
@@ -239,19 +271,6 @@ void vkContext::cleanUp()
         vkFreeMemory(m_device, m_sbtMemory, nullptr);
     }
 
-    if(m_VertexData.vertexBuffer != VK_NULL_HANDLE)
-    {
-        vmaDestroyBuffer(m_allocator, m_VertexData.vertexBuffer, m_VertexData.vertexBufferMemory);
-    }
-    if(m_VertexData.indexBuffer != VK_NULL_HANDLE)
-    {
-        vmaDestroyBuffer(m_allocator, m_VertexData.indexBuffer, m_VertexData.indexBufferMemory);
-    }
-    if(m_VertexData.materialBuffer != VK_NULL_HANDLE)
-    {
-        vmaDestroyBuffer(m_allocator, m_VertexData.materialBuffer,
-                         m_VertexData.materialBufferAllocation);
-    }
     if(m_rtDescriptorSetLayout != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayout, nullptr);
@@ -261,6 +280,10 @@ void vkContext::cleanUp()
         vkDestroyDescriptorPool(m_device, m_rtDescriptorPool, nullptr);
     }
 
+    if(m_rtUniformBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_rtUniformBuffer, m_rtUniformMemory);
+    }
 
     for(size_t i = 0; i < m_graphics.uniformBuffers.size(); ++i)
     {
@@ -294,13 +317,11 @@ void vkContext::cleanUp()
     {
         vkDestroyCommandPool(m_device, m_graphics.commandPool, nullptr);
     }
-    if(m_graphics.imageAvailableSemaphore != VK_NULL_HANDLE)
+    for(uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        vkDestroySemaphore(m_device, m_graphics.imageAvailableSemaphore, nullptr);
-    }
-    if(m_graphics.renderingFinishedSemaphore != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(m_device, m_graphics.renderingFinishedSemaphore, nullptr);
+        vkDestroySemaphore(m_device, m_graphics.imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(m_device, m_graphics.renderingFinishedSemaphores[i], nullptr);
+        vkDestroyFence(m_device, m_graphics.inFlightFences[i], nullptr);
     }
 
     if(m_allocator != VK_NULL_HANDLE)
@@ -596,14 +617,27 @@ void vkContext::createLogicalDevice()
 
 void vkContext::createSynchronizationPrimitives()
 {
+    m_graphics.imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    m_graphics.renderingFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    m_graphics.inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
     VkSemaphoreCreateInfo createInfo = {};
     createInfo.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     createInfo.flags                 = 0;
 
-    VK_CHECK_RESULT(
-        vkCreateSemaphore(m_device, &createInfo, nullptr, &m_graphics.imageAvailableSemaphore));
-    VK_CHECK_RESULT(
-        vkCreateSemaphore(m_device, &createInfo, nullptr, &m_graphics.renderingFinishedSemaphore));
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags             = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for(uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        VK_CHECK_RESULT(vkCreateSemaphore(m_device, &createInfo, nullptr,
+                                          &m_graphics.imageAvailableSemaphores[i]));
+        VK_CHECK_RESULT(vkCreateSemaphore(m_device, &createInfo, nullptr,
+                                          &m_graphics.renderingFinishedSemaphores[i]));
+        VK_CHECK_RESULT(
+            vkCreateFence(m_device, &fenceInfo, nullptr, &m_graphics.inFlightFences[i]));
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -926,6 +960,11 @@ void vkContext::createUniformBuffers()
                                   | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                               &buffer, &memory);
     }
+
+    VkTools::createBuffer(
+        m_allocator, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &m_rtUniformBuffer, &m_rtUniformMemory);
 }
 
 // ----------------------------------------------------------------------------
@@ -946,9 +985,15 @@ void vkContext::updateGraphicsUniforms()
     ubo.projInverse = glm::inverse(ubo.proj);
 
     void* data;
+    // Graphics pipeline
     vmaMapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage], &data);
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage]);
+
+    // Raytracing pipeline
+    vmaMapMemory(m_allocator, m_rtUniformMemory, &data);
+    memcpy(data, &ubo, sizeof(ubo));
+    vmaUnmapMemory(m_allocator, m_rtUniformMemory);
 }
 
 // ----------------------------------------------------------------------------
@@ -1116,6 +1161,7 @@ void vkContext::createDescriptorPool()
     // UBO
     poolSizes[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
+    poolSizes[0].descriptorCount = 1000;
 
     poolSizes[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = 1000;
@@ -1315,6 +1361,7 @@ void vkContext::recordCommandBuffers()
 
     for(uint32_t i = 0; i < m_swapchain.frameBuffers.size(); ++i)
     {
+        //if(!m_settings.RTX_ON)
         {
             const VkCommandBuffer commandBuffer = m_swapchain.commandBuffers[i];
             renderPassInfo.framebuffer          = m_swapchain.frameBuffers[i];
@@ -1344,10 +1391,11 @@ void vkContext::recordCommandBuffers()
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
         }
         // NVRTX --------
-        if(0)
+        //else
+        //if(0)
         {
-            const VkCommandBuffer commandBuffer = m_rtCommandBuffers[i];
-            renderPassInfo.framebuffer          = m_swapchain.frameBuffers[i];
+            const VkCommandBuffer& commandBuffer = m_rtCommandBuffers[i];
+            renderPassInfo.framebuffer           = m_swapchain.frameBuffers[i];
 
             vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
@@ -1358,8 +1406,6 @@ void vkContext::recordCommandBuffers()
                                  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                  &imageMemoryBarrier);
 
-            // TODO: This does not belong here
-            updateRaytracingRenderTarget(m_swapchain.views[i]);
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1480,7 +1526,10 @@ void check_vk_result(VkResult res)
 }
 
 // ----------------------------------------------------------------------------
-//
+//  Dear ImGui Setup: Created separate renderpass for ImGui, instead of clearing
+//  framebuffer values from previous pass, draw ImGui overlay on top of it (createRenderPass).
+//  When rendering in renderFrame function, setup commandbuffer to record ImGui specific
+//  commands and submit it with other drawing commands.
 //
 
 void vkContext::initDearImGui()
@@ -1621,14 +1670,9 @@ void vkContext::endRenderPass(VkCommandBuffer commandBuffer)
 
 void vkContext::LoadModelFromFile(const std::string& objPath)
 {
-
-
     VkTools::Model model(this, objPath);
 
     m_models.push_back(model);
-
-    //createVertexAndIndexBuffers(model.m_vertices, model.m_indices, &model.m_vertexBuffer,
-    //                            &model.m_vertexMemory, &model.m_indexBuffer, &model.m_indexMemory);
 }
 
 // ----------------------------------------------------------------------------
@@ -1662,12 +1706,13 @@ void vkContext::initRaytracing()
 
 void vkContext::createGeometryInstances()
 {
+    auto&            model = m_models[0];
     GeometryInstance instance;
-    instance.vertexBuffer = m_VertexData.vertexBuffer;
-    instance.vertexCount  = m_VertexData.nbVertices;
+    instance.vertexBuffer = model.vertexBuffer;
+    instance.vertexCount  = model.numVertices;
     instance.vertexOffset = 0;
-    instance.indexBuffer  = m_VertexData.indexBuffer;
-    instance.indexCount   = m_VertexData.nbIndices;
+    instance.indexBuffer  = model.indexBuffer;
+    instance.indexCount   = model.numIndices;
     instance.indexOffset  = 0;
     instance.transform    = glm::mat4(1.0);
 
@@ -1688,13 +1733,13 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     {
         if(buffer.indexBuffer == VK_NULL_HANDLE)
         {
-            bottomLevelAS.addVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
+            bottomLevelAS.AddVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
                                           buffer.vertexCount, sizeof(VkTools::VertexPNTC),
                                           VK_NULL_HANDLE, 0);
         }
         else
         {
-            bottomLevelAS.addVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
+            bottomLevelAS.AddVertexBuffer(buffer.vertexBuffer, buffer.vertexOffset,
                                           buffer.vertexCount, sizeof(VkTools::VertexPNTC),
                                           buffer.indexBuffer, buffer.indexOffset, buffer.indexCount,
                                           VK_NULL_HANDLE, 0);
@@ -1702,12 +1747,12 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     }
 
     AccelerationStructure buffers;
-    buffers.structure = bottomLevelAS.createAccelerationStructure(m_device, VK_FALSE);
+    buffers.structure = bottomLevelAS.CreateAccelerationStructure(m_device, VK_FALSE);
 
     VkDeviceSize scratchBufferSize = 0;
     VkDeviceSize resultBufferSize  = 0;
 
-    bottomLevelAS.computeASBufferSizes(m_device, buffers.structure, &scratchBufferSize,
+    bottomLevelAS.ComputeASBufferSizes(m_device, buffers.structure, &scratchBufferSize,
                                        &resultBufferSize);
 
     VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, scratchBufferSize,
@@ -1720,7 +1765,7 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffers.resultBuffer,
                                &buffers.resultMemory);
 
-    bottomLevelAS.generate(m_device, commandBuffer, buffers.structure, buffers.scratchBuffer, 0,
+    bottomLevelAS.Generate(m_device, commandBuffer, buffers.structure, buffers.scratchBuffer, 0,
                            buffers.resultBuffer, buffers.resultMemory, VK_FALSE, VK_NULL_HANDLE);
 
     return buffers;
@@ -1739,19 +1784,19 @@ void vkContext::createTopLevelAS(
     {
         for(size_t i = 0; i < instances.size(); ++i)
         {
-            m_TopLevelASGenerator.addInstance(instances[i].first, instances[i].second,
+            m_TopLevelASGenerator.AddInstance(instances[i].first, instances[i].second,
                                               static_cast<uint32_t>(i),
                                               static_cast<uint32_t>(2 * i));
         }
 
         m_TopLevelAS.structure =
-            m_TopLevelASGenerator.createAccelerationStructure(m_device, VK_TRUE);
+            m_TopLevelASGenerator.CreateAccelerationStructure(m_device, VK_TRUE);
 
 
         VkDeviceSize scratchBufferSize;
         VkDeviceSize resultBufferSize;
         VkDeviceSize instancesBufferSize;
-        m_TopLevelASGenerator.computeASBufferSizes(m_device, m_TopLevelAS.structure,
+        m_TopLevelASGenerator.ComputeASBufferSizes(m_device, m_TopLevelAS.structure,
                                                    &scratchBufferSize, &resultBufferSize,
                                                    &instancesBufferSize);
 
@@ -1771,7 +1816,7 @@ void vkContext::createTopLevelAS(
             &m_TopLevelAS.instancesBuffer, &m_TopLevelAS.instancesMemory);
     }
 
-    m_TopLevelASGenerator.generate(m_device, commandBuffer, m_TopLevelAS.structure,
+    m_TopLevelASGenerator.Generate(m_device, commandBuffer, m_TopLevelAS.structure,
                                    m_TopLevelAS.scratchBuffer, 0, m_TopLevelAS.resultBuffer,
                                    m_TopLevelAS.resultMemory, m_TopLevelAS.instancesBuffer,
                                    m_TopLevelAS.instancesMemory, updateOnly,
@@ -1849,6 +1894,7 @@ void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
 
 void vkContext::createRaytracingDescriptorSet()
 {
+    auto& model = m_models[0];
 
     VkBufferMemoryBarrier barrier = {};
     barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -1862,12 +1908,12 @@ void vkContext::createRaytracingDescriptorSet()
 
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-    barrier.buffer = m_VertexData.vertexBuffer;
+    barrier.buffer = model.vertexBuffer;
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0,
                          nullptr);
 
-    barrier.buffer = m_VertexData.indexBuffer;
+    barrier.buffer = model.indexBuffer;
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0,
                          nullptr);
@@ -1875,33 +1921,32 @@ void vkContext::createRaytracingDescriptorSet()
     endSingleTimeCommands(commandBuffer);
 
     // Acceleration structure
-    m_rtDSG.addBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
+    m_rtDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
                        VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     // Output image
-    m_rtDSG.addBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    m_rtDSG.AddBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Camera information
-    m_rtDSG.addBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    m_rtDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Vertex buffer
-    m_rtDSG.addBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     // Index buffer
-    m_rtDSG.addBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     // Material buffer
-    m_rtDSG.addBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     // Textures
-    //m_rtDSG.addBinding(6, static_cast<uint32_t>(m_TextureSampler.size()),
-    //                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    //                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(6, static_cast<uint32_t>(m_models[0].m_textures.size()),
+                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                       VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
-    m_rtDescriptorPool      = m_rtDSG.generatePool(m_device);
-    m_rtDescriptorSetLayout = m_rtDSG.generateLayout(m_device);
-
-    m_rtDescriptorSet = m_rtDSG.generateSet(m_device, m_rtDescriptorPool, m_rtDescriptorSetLayout);
+    m_rtDescriptorPool      = m_rtDSG.GeneratePool(m_device);
+    m_rtDescriptorSetLayout = m_rtDSG.GenerateLayout(m_device);
+    m_rtDescriptorSet = m_rtDSG.GenerateSet(m_device, m_rtDescriptorPool, m_rtDescriptorSetLayout);
 
     VkWriteDescriptorSetAccelerationStructureNV descSetASInfo = {};
     descSetASInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
@@ -1913,7 +1958,7 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Camera matrices
     VkDescriptorBufferInfo cameraInfo = {};
-    cameraInfo.buffer                 = m_graphics.uniformBuffers[m_currentImage];
+    cameraInfo.buffer                 = m_rtUniformBuffer;
     cameraInfo.offset                 = 0;
     cameraInfo.range                  = sizeof(UniformBufferObject);
 
@@ -1921,7 +1966,7 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Vertex buffer
     VkDescriptorBufferInfo vertexInfo = {};
-    vertexInfo.buffer                 = m_VertexData.vertexBuffer;
+    vertexInfo.buffer                 = model.vertexBuffer;
     vertexInfo.offset                 = 0;
     vertexInfo.range                  = VK_WHOLE_SIZE;
 
@@ -1929,7 +1974,7 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Index buffer
     VkDescriptorBufferInfo indexInfo = {};
-    indexInfo.buffer                 = m_VertexData.indexBuffer;
+    indexInfo.buffer                 = model.indexBuffer;
     indexInfo.offset                 = 0;
     indexInfo.range                  = VK_WHOLE_SIZE;
 
@@ -1937,7 +1982,7 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Material buffer
     VkDescriptorBufferInfo materialInfo = {};
-    materialInfo.buffer                 = m_VertexData.materialBuffer;
+    materialInfo.buffer                 = model.materialBuffer;
     materialInfo.offset                 = 0;
     materialInfo.range                  = VK_WHOLE_SIZE;
 
@@ -1945,15 +1990,17 @@ void vkContext::createRaytracingDescriptorSet()
 
     // Textures
     std::vector<VkDescriptorImageInfo> imageInfos;
-    for(size_t i = 0; i < m_textureSampler.size(); ++i)
+    for(size_t i = 0; i < model.m_textures.size(); ++i)
     {
+        auto&                 texture   = model.m_textures[i];
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView             = m_textureImageView[i];
-        imageInfo.sampler               = m_textureSampler[i];
+        imageInfo.imageView             = texture.view;
+        imageInfo.sampler               = texture.sampler;
         imageInfos.push_back(imageInfo);
     }
-    if(!m_textureSampler.empty())
+
+    if(!model.m_textures.empty())
     {
         m_rtDSG.Bind(m_rtDescriptorSet, 6, imageInfos);
     }
@@ -1983,7 +2030,7 @@ void vkContext::updateRaytracingRenderTarget(VkImageView target)
 void vkContext::createRaytracingPipeline()
 {
 
-    RaytracingPipelineGenerator pipelineGen;
+    RayTracingPipelineGenerator pipelineGen;
 
     VkShaderModule rayGenModule =
         VkTools::createShaderModule("../../shaders/pathRT.rgen.spv", m_device);
@@ -2029,7 +2076,9 @@ void vkContext::createShaderBindingTable()
 
     m_sbtGen.AddRayGenerationProgram(m_raygenIndex, {});
     m_sbtGen.AddMissProgram(m_missIndex, {});
+    m_sbtGen.AddMissProgram(m_shadowMissIndex, {});
     m_sbtGen.AddHitGroup(m_hitGroupIndex, {});
+    m_sbtGen.AddHitGroup(m_shadowHitGroupIndex, {});
 
     VkDeviceSize shaderBindingTableSize = m_sbtGen.ComputeSBTSize(m_RaytracingProperties);
 
