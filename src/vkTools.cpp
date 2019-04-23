@@ -184,7 +184,8 @@ VkCommandBuffer beginRecordingCommandBuffer(VkDevice device, VkCommandPool pool)
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    beginInfo.flags =
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
@@ -482,7 +483,8 @@ void createTextureSampler(VkDevice device, VkSampler* sampler)
 //
 //
 
-std::string replaceSubString(const std::string& str, const std::string& from, const std::string& to) {
+std::string replaceSubString(const std::string& str, const std::string& from, const std::string& to)
+{
     return std::regex_replace(str, std::regex(from), to);
 }
 

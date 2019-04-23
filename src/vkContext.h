@@ -258,12 +258,18 @@ class vkContext
     void createRaytracingPipeline();
     void createShaderBindingTable();
 
-    VkPhysicalDeviceRayTracingPropertiesNV m_RaytracingProperties = {};
-    std::vector<GeometryInstance>          m_GeometryInstances;
+    VkRenderPass               m_rtRenderpass = VK_NULL_HANDLE;
+    std::vector<VkImage>       m_rtImages;
+    std::vector<VkFramebuffer> m_rtFrameBuffers;
+    std::vector<VkImageView>   m_rtViews;
 
-    TopLevelASGenerator                m_TopLevelASGenerator;
-    AccelerationStructure              m_TopLevelAS;
-    std::vector<AccelerationStructure> m_BottomLevelAS;
+
+    VkPhysicalDeviceRayTracingPropertiesNV m_raytracingProperties = {};
+    std::vector<GeometryInstance>          m_geometryInstances;
+
+    TopLevelASGenerator                m_topLevelASGenerator;
+    AccelerationStructure              m_topLevelAS;
+    std::vector<AccelerationStructure> m_bottomLevelAS;
 
     DescriptorSetGenerator m_rtDSG;
     VkDescriptorPool       m_rtDescriptorPool      = VK_NULL_HANDLE;
@@ -284,7 +290,7 @@ class vkContext
     VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_rtPipeline       = VK_NULL_HANDLE;
 
-    uint32_t m_raygenIndex;
+    uint32_t m_rayGenIndex;
     uint32_t m_hitGroupIndex;
     uint32_t m_missIndex;
 

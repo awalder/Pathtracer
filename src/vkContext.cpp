@@ -57,11 +57,11 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
-    //LoadModelFromFile("../../scenes/conference/conference.obj");
+    LoadModelFromFile("../../scenes/conference/conference.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -72,6 +72,7 @@ void vkContext::initVulkan()
     createRaytracingDescriptorSet();
     createRaytracingPipeline();
     createShaderBindingTable();
+    updateRaytracingRenderTarget(m_swapchain.views[0]);
 
 
     createDescriptorPool();
@@ -129,51 +130,120 @@ void vkContext::renderFrame()
         recreateSwapchain();
     }
 
-    updateRaytracingRenderTarget(m_swapchain.views[m_currentImage]);
-    //m_currentImage = imageIndex;
+    //if(m_settings.RTX_ON)
+    {
+        updateRaytracingRenderTarget(m_swapchain.views[imageIndex]);
+    }
     updateGraphicsUniforms();
 
     // ImGui
-    VkCommandBuffer cmdBuf = beginSingleTimeCommands();
-    beginRenderPass(cmdBuf, m_graphics.renderpassImGui);
-    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
+    VkCommandBuffer cmdBufImGui = beginSingleTimeCommands();
+    {
+        beginRenderPass(cmdBufImGui, m_graphics.renderpassImGui);
+        vkCmdBindPipeline(cmdBufImGui, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics.pipeline);
 
-    renderImGui(cmdBuf);
+        renderImGui(cmdBufImGui);
 
-    endRenderPass(cmdBuf);
-    vkEndCommandBuffer(cmdBuf);
-
+        endRenderPass(cmdBufImGui);
+        vkEndCommandBuffer(cmdBufImGui);
+    }
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-    std::array<VkCommandBuffer, 2> cmdBuffers   = {m_swapchain.commandBuffers[imageIndex], cmdBuf};
-    std::array<VkCommandBuffer, 2> cmdBuffersRT = {m_rtCommandBuffers[imageIndex], cmdBuf};
-
-    VkSubmitInfo submitInfo       = {};
-    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores    = &m_graphics.imageAvailableSemaphores[m_currentImage];
-    submitInfo.pWaitDstStageMask  = waitStages;
-    submitInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffers.size());
-    //submitInfo.commandBufferCount   = 1;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphores[m_currentImage];
-
-    if(!m_settings.RTX_ON)
+    if(m_settings.RTX_ON)
     {
-        submitInfo.pCommandBuffers = cmdBuffers.data();
-        //submitInfo.pCommandBuffers = &m_swapchain.commandBuffers[imageIndex];
+        std::array<VkClearValue, 2> clearValuesRT = {};
+        clearValuesRT[0].color                    = {0.8f, 0.1f, 0.2f, 1.0f};
+        clearValuesRT[1].depthStencil             = {1.0f, 0};
+        VkRenderPassBeginInfo renderPassInfoRT    = {};
+        renderPassInfoRT.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfoRT.renderPass               = m_rtRenderpass;
+        renderPassInfoRT.renderArea.offset        = {0, 0};
+        renderPassInfoRT.renderArea.extent        = m_swapchain.extent;
+        renderPassInfoRT.clearValueCount          = static_cast<uint32_t>(clearValuesRT.size());
+        renderPassInfoRT.pClearValues             = clearValuesRT.data();
+
+        VkImageMemoryBarrier imageMemoryBarrier;
+        imageMemoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.pNext               = nullptr;
+        imageMemoryBarrier.srcAccessMask       = 0;
+        imageMemoryBarrier.dstAccessMask       = VK_ACCESS_SHADER_WRITE_BIT;
+        imageMemoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        imageMemoryBarrier.newLayout           = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+        renderPassInfoRT.framebuffer = m_swapchain.frameBuffers[imageIndex];
+        //vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        imageMemoryBarrier.image = m_swapchain.images[imageIndex];
+
+        VkCommandBuffer rtCommandBuffer = beginSingleTimeCommands();
+        vkCmdPipelineBarrier(rtCommandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                             &imageMemoryBarrier);
+
+        vkCmdBeginRenderPass(rtCommandBuffer, &renderPassInfoRT, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(rtCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipeline);
+
+        vkCmdBindDescriptorSets(rtCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV,
+                                m_rtPipelineLayout, 0, 1, &m_rtDescriptorSet, 0, nullptr);
+
+        VkDeviceSize rayGenOffset   = m_sbtGen.GetRayGenOffset();
+        VkDeviceSize missOffset     = m_sbtGen.GetMissOffset();
+        VkDeviceSize missStride     = m_sbtGen.GetMissEntrySize();
+        VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
+        VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
+
+        vkCmdTraceRaysNV(rtCommandBuffer, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset,
+                         missStride, m_sbtBuffer, hitGroupOffset, hitGroupStride, VK_NULL_HANDLE, 0,
+                         0, m_swapchain.extent.width, m_swapchain.extent.height, 1);
+
+        vkCmdEndRenderPass(rtCommandBuffer);
+
+        VK_CHECK_RESULT(vkEndCommandBuffer(rtCommandBuffer));
+
+        //std::array<VkCommandBuffer, 1> cmdBuffersRT = {m_rtCommandBuffers[imageIndex]};
+        //std::array<VkCommandBuffer, 2> cmdBuffersRT = {m_rtCommandBuffers[1], cmdBufImGui};
+        std::array<VkCommandBuffer, 2> cmdBuffersRT = {rtCommandBuffer, cmdBufImGui};
+
+        VkSubmitInfo submitInfo         = {};
+        submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.waitSemaphoreCount   = 1;
+        submitInfo.pWaitSemaphores      = &m_graphics.imageAvailableSemaphores[m_currentImage];
+        submitInfo.pWaitDstStageMask    = waitStages;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphores[m_currentImage];
+        submitInfo.commandBufferCount   = static_cast<uint32_t>(cmdBuffersRT.size());
+        submitInfo.pCommandBuffers      = cmdBuffersRT.data();
+
+        result = vkQueueSubmit(m_queue, 1, &submitInfo, m_graphics.inFlightFences[m_currentImage]);
+        if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            recreateSwapchain();
+        }
     }
     else
     {
-        submitInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffersRT.size());
-        submitInfo.pCommandBuffers    = cmdBuffersRT.data();
-    }
+        std::array<VkCommandBuffer, 2> cmdBuffers = {m_swapchain.commandBuffers[imageIndex],
+                                                     cmdBufImGui};
 
-    result = vkQueueSubmit(m_queue, 1, &submitInfo, m_graphics.inFlightFences[m_currentImage]);
-    if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        recreateSwapchain();
+        VkSubmitInfo submitInfo         = {};
+        submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.waitSemaphoreCount   = 1;
+        submitInfo.pWaitSemaphores      = &m_graphics.imageAvailableSemaphores[m_currentImage];
+        submitInfo.pWaitDstStageMask    = waitStages;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores    = &m_graphics.renderingFinishedSemaphores[m_currentImage];
+        submitInfo.commandBufferCount   = static_cast<uint32_t>(cmdBuffers.size());
+        submitInfo.pCommandBuffers      = cmdBuffers.data();
+
+        result = vkQueueSubmit(m_queue, 1, &submitInfo, m_graphics.inFlightFences[m_currentImage]);
+        if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            recreateSwapchain();
+        }
     }
 
 
@@ -192,8 +262,6 @@ void vkContext::renderFrame()
         recreateSwapchain();
     }
 
-    // Poor solution, move to fences
-    //vkQueueWaitIdle(m_queue);
     m_currentImage = (m_currentImage + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -240,7 +308,7 @@ void vkContext::cleanUp()
     cleanUpSwapchain();
 
 
-    destroyAccelerationStructures(m_TopLevelAS);
+    destroyAccelerationStructures(m_topLevelAS);
     ImGui_ImplGlfwVulkan_Shutdown();
     //ImGui_ImplGlfw_Shutdown();
 
@@ -249,7 +317,7 @@ void vkContext::cleanUp()
         m.cleanUp();
     }
 
-    for(auto& as : m_BottomLevelAS)
+    for(auto& as : m_bottomLevelAS)
     {
         destroyAccelerationStructures(as);
     }
@@ -297,6 +365,11 @@ void vkContext::cleanUp()
     if(m_graphics.renderpassImGui != VK_NULL_HANDLE)
     {
         vkDestroyRenderPass(m_device, m_graphics.renderpassImGui, nullptr);
+    }
+
+    if(m_rtRenderpass != VK_NULL_HANDLE)
+    {
+        vkDestroyRenderPass(m_device, m_rtRenderpass, nullptr);
     }
 
     //if(m_graphics.pipelineImGui != VK_NULL_HANDLE)
@@ -684,10 +757,11 @@ void vkContext::createSwapchain()
         //}
     }
 
-    VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     if(m_surface.surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
     {
-        usageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        //usageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
 
     VkSwapchainCreateInfoKHR createInfo = {};
@@ -737,8 +811,9 @@ void vkContext::createCommandPools()
 {
     VkCommandPoolCreateInfo createInfo = {};
     createInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    createInfo.flags                   = 0;
-    createInfo.queueFamilyIndex        = m_gpu.queueFamily;
+    //createInfo.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    createInfo.flags            = 0;
+    createInfo.queueFamilyIndex = m_gpu.queueFamily;
 
     VK_CHECK_RESULT(vkCreateCommandPool(m_device, &createInfo, nullptr, &m_graphics.commandPool));
 }
@@ -879,12 +954,12 @@ void vkContext::createRenderPass()
     dependencies[0].dstAccessMask   = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    dependencies[1].srcSubpass    = 0;
-    dependencies[1].dstSubpass    = VK_SUBPASS_EXTERNAL;  // =VK_SUBPASS_EXTERNAL; // ImGui Subpass
-    dependencies[1].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[1].srcSubpass      = 0;
+    dependencies[1].dstSubpass      = 0;  // =VK_SUBPASS_EXTERNAL; // ImGui Subpass
+    dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    dependencies[1].srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 
@@ -899,6 +974,9 @@ void vkContext::createRenderPass()
     renderpassInfo.pDependencies   = dependencies.data();
 
     VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_graphics.renderpass));
+
+    //RTX renderpass
+    VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpass));
 
     {  // Imgui renderpass
 
@@ -1323,10 +1401,15 @@ void vkContext::recordCommandBuffers()
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    //beginInfo.flags = 0;
 
     std::array<VkClearValue, 2> clearValues = {};
     clearValues[0].color                    = {0.1f, 0.1f, 0.1f, 1.0f};
     clearValues[1].depthStencil             = {1.0f, 0};
+
+    //std::array<VkClearValue, 2> clearValuesRT = {};
+    //clearValuesRT[0].color                    = {0.8f, 0.1f, 0.2f, 1.0f};
+    //clearValuesRT[1].depthStencil             = {1.0f, 0};
 
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType                 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1336,24 +1419,25 @@ void vkContext::recordCommandBuffers()
     renderPassInfo.clearValueCount       = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues          = clearValues.data();
 
+    //VkRenderPassBeginInfo renderPassInfoRT = {};
+    //renderPassInfoRT.sType                 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    //renderPassInfoRT.renderPass            = m_rtRenderpass;
+    //renderPassInfoRT.renderArea.offset     = {0, 0};
+    //renderPassInfoRT.renderArea.extent     = m_swapchain.extent;
+    //renderPassInfoRT.clearValueCount       = static_cast<uint32_t>(clearValuesRT.size());
+    //renderPassInfoRT.pClearValues          = clearValuesRT.data();
 
-    VkImageSubresourceRange subresourceRange;
-    subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-    subresourceRange.baseMipLevel   = 0;
-    subresourceRange.levelCount     = 1;
-    subresourceRange.baseArrayLayer = 0;
-    subresourceRange.layerCount     = 1;
 
-    VkImageMemoryBarrier imageMemoryBarrier;
-    imageMemoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    imageMemoryBarrier.pNext               = nullptr;
-    imageMemoryBarrier.srcAccessMask       = 0;
-    imageMemoryBarrier.dstAccessMask       = VK_ACCESS_SHADER_WRITE_BIT;
-    imageMemoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    imageMemoryBarrier.newLayout           = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.subresourceRange    = subresourceRange;
+    //VkImageMemoryBarrier imageMemoryBarrier;
+    //imageMemoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    //imageMemoryBarrier.pNext               = nullptr;
+    //imageMemoryBarrier.srcAccessMask       = 0;
+    //imageMemoryBarrier.dstAccessMask       = VK_ACCESS_SHADER_WRITE_BIT;
+    //imageMemoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    //imageMemoryBarrier.newLayout           = VK_IMAGE_LAYOUT_GENERAL;
+    //imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    //imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    //imageMemoryBarrier.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
     VkDeviceSize offsets[] = {0};
     //VkBuffer     vertexBuffers[] = {m_models.model.m_vertexBuffer};
@@ -1391,43 +1475,43 @@ void vkContext::recordCommandBuffers()
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
         }
         // NVRTX --------
-        //else
         //if(0)
         {
-            const VkCommandBuffer& commandBuffer = m_rtCommandBuffers[i];
-            renderPassInfo.framebuffer           = m_swapchain.frameBuffers[i];
-
-            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+            //const VkCommandBuffer& commandBuffer = m_rtCommandBuffers[i];
+            //renderPassInfoRT.framebuffer           = m_swapchain.frameBuffers[i];
 
 
-            imageMemoryBarrier.image = m_swapchain.images[i];
-
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
-                                 &imageMemoryBarrier);
+            //vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 
-            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            //imageMemoryBarrier.image = m_swapchain.images[i];
 
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipeline);
+            //vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            //                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
+            //                     &imageMemoryBarrier);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV,
-                                    m_rtPipelineLayout, 0, 1, &m_rtDescriptorSet, 0, nullptr);
 
-            VkDeviceSize rayGenOffset   = m_sbtGen.GetRayGenOffset();
-            VkDeviceSize missOffset     = m_sbtGen.GetMissOffset();
-            VkDeviceSize missStride     = m_sbtGen.GetMissEntrySize();
-            VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
-            VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
+            //vkCmdBeginRenderPass(commandBuffer, &renderPassInfoRT, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdTraceRaysNV(commandBuffer, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset,
-                             missStride, m_sbtBuffer, hitGroupOffset, hitGroupStride,
-                             VK_NULL_HANDLE, 0, 0, m_swapchain.extent.width,
-                             m_swapchain.extent.height, 1);
+            //vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipeline);
 
-            vkCmdEndRenderPass(commandBuffer);
+            //vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV,
+            //                        m_rtPipelineLayout, 0, 1, &m_rtDescriptorSet, 0, nullptr);
 
-            VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+            //VkDeviceSize rayGenOffset   = m_sbtGen.GetRayGenOffset();
+            //VkDeviceSize missOffset     = m_sbtGen.GetMissOffset();
+            //VkDeviceSize missStride     = m_sbtGen.GetMissEntrySize();
+            //VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
+            //VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
+
+            //vkCmdTraceRaysNV(commandBuffer, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset,
+            //                 missStride, m_sbtBuffer, hitGroupOffset, hitGroupStride,
+            //                 VK_NULL_HANDLE, 0, 0, m_swapchain.extent.width,
+            //                 m_swapchain.extent.height, 1);
+
+            //vkCmdEndRenderPass(commandBuffer);
+
+            //VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
         }
     }
 }
@@ -1681,20 +1765,20 @@ void vkContext::LoadModelFromFile(const std::string& objPath)
 
 void vkContext::initRaytracing()
 {
-    m_RaytracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
-    m_RaytracingProperties.pNext = nullptr;
-    m_RaytracingProperties.shaderGroupHandleSize;
-    m_RaytracingProperties.maxRecursionDepth;
-    m_RaytracingProperties.maxShaderGroupStride;
-    m_RaytracingProperties.shaderGroupBaseAlignment;
-    m_RaytracingProperties.maxGeometryCount;
-    m_RaytracingProperties.maxInstanceCount;
-    m_RaytracingProperties.maxTriangleCount;
-    m_RaytracingProperties.maxDescriptorSetAccelerationStructures;
+    m_raytracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
+    m_raytracingProperties.pNext = nullptr;
+    m_raytracingProperties.shaderGroupHandleSize;
+    m_raytracingProperties.maxRecursionDepth;
+    m_raytracingProperties.maxShaderGroupStride;
+    m_raytracingProperties.shaderGroupBaseAlignment;
+    m_raytracingProperties.maxGeometryCount;
+    m_raytracingProperties.maxInstanceCount;
+    m_raytracingProperties.maxTriangleCount;
+    m_raytracingProperties.maxDescriptorSetAccelerationStructures;
 
     VkPhysicalDeviceProperties2 properties = {};
     properties.sType                       = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    properties.pNext                       = &m_RaytracingProperties;
+    properties.pNext                       = &m_raytracingProperties;
     properties.properties                  = {};
 
     vkGetPhysicalDeviceProperties2(m_gpu.physicalDevice, &properties);
@@ -1714,9 +1798,9 @@ void vkContext::createGeometryInstances()
     instance.indexBuffer  = model.indexBuffer;
     instance.indexCount   = model.numIndices;
     instance.indexOffset  = 0;
-    instance.transform    = glm::mat4(1.0);
+    instance.transform    = glm::mat4(1.0f);
 
-    m_GeometryInstances.push_back(instance);
+    m_geometryInstances.push_back(instance);
 }
 
 // ----------------------------------------------------------------------------
@@ -1727,6 +1811,7 @@ vkContext::AccelerationStructure vkContext::createBottomLevelAS(
     VkCommandBuffer               commandBuffer,
     std::vector<GeometryInstance> vVertexBuffers)
 {
+
     BottomLevelASGenerator bottomLevelAS;
 
     for(const auto& buffer : vVertexBuffers)
@@ -1780,47 +1865,48 @@ void vkContext::createTopLevelAS(
     const std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>>& instances,
     VkBool32                                                            updateOnly)
 {
+
     if(!updateOnly)
     {
         for(size_t i = 0; i < instances.size(); ++i)
         {
-            m_TopLevelASGenerator.AddInstance(instances[i].first, instances[i].second,
+            m_topLevelASGenerator.AddInstance(instances[i].first, instances[i].second,
                                               static_cast<uint32_t>(i),
                                               static_cast<uint32_t>(2 * i));
         }
 
-        m_TopLevelAS.structure =
-            m_TopLevelASGenerator.CreateAccelerationStructure(m_device, VK_TRUE);
+        m_topLevelAS.structure =
+            m_topLevelASGenerator.CreateAccelerationStructure(m_device, VK_TRUE);
 
 
         VkDeviceSize scratchBufferSize;
         VkDeviceSize resultBufferSize;
         VkDeviceSize instancesBufferSize;
-        m_TopLevelASGenerator.ComputeASBufferSizes(m_device, m_TopLevelAS.structure,
+        m_topLevelASGenerator.ComputeASBufferSizes(m_device, m_topLevelAS.structure,
                                                    &scratchBufferSize, &resultBufferSize,
                                                    &instancesBufferSize);
 
         VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, scratchBufferSize,
                                    VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
-                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_TopLevelAS.scratchBuffer,
-                                   &m_TopLevelAS.scratchMemory);
+                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_topLevelAS.scratchBuffer,
+                                   &m_topLevelAS.scratchMemory);
 
         VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, resultBufferSize,
                                    VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
-                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_TopLevelAS.resultBuffer,
-                                   &m_TopLevelAS.resultMemory);
+                                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_topLevelAS.resultBuffer,
+                                   &m_topLevelAS.resultMemory);
 
         VkTools::createBufferNoVMA(
             m_device, m_gpu.physicalDevice, instancesBufferSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-            &m_TopLevelAS.instancesBuffer, &m_TopLevelAS.instancesMemory);
+            &m_topLevelAS.instancesBuffer, &m_topLevelAS.instancesMemory);
     }
 
-    m_TopLevelASGenerator.Generate(m_device, commandBuffer, m_TopLevelAS.structure,
-                                   m_TopLevelAS.scratchBuffer, 0, m_TopLevelAS.resultBuffer,
-                                   m_TopLevelAS.resultMemory, m_TopLevelAS.instancesBuffer,
-                                   m_TopLevelAS.instancesMemory, updateOnly,
-                                   updateOnly ? m_TopLevelAS.structure : VK_NULL_HANDLE);
+    m_topLevelASGenerator.Generate(m_device, commandBuffer, m_topLevelAS.structure,
+                                   m_topLevelAS.scratchBuffer, 0, m_topLevelAS.resultBuffer,
+                                   m_topLevelAS.resultMemory, m_topLevelAS.instancesBuffer,
+                                   m_topLevelAS.instancesMemory, updateOnly,
+                                   updateOnly ? m_topLevelAS.structure : VK_NULL_HANDLE);
 }
 
 // ----------------------------------------------------------------------------
@@ -1830,21 +1916,22 @@ void vkContext::createTopLevelAS(
 void vkContext::createAccelerationStructures()
 {
 
+
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-    m_BottomLevelAS.resize(m_GeometryInstances.size());
+    m_bottomLevelAS.resize(m_geometryInstances.size());
 
     std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>> instances;
 
-    for(size_t i = 0; i < m_GeometryInstances.size(); ++i)
+    for(size_t i = 0; i < m_geometryInstances.size(); ++i)
     {
-        m_BottomLevelAS[i] = createBottomLevelAS(
+        m_bottomLevelAS[i] = createBottomLevelAS(
             commandBuffer,
             {
-                {m_GeometryInstances[i].vertexBuffer, m_GeometryInstances[i].vertexCount,
-                 m_GeometryInstances[i].vertexOffset, m_GeometryInstances[i].indexBuffer,
-                 m_GeometryInstances[i].indexCount, m_GeometryInstances[i].indexOffset},
+                {m_geometryInstances[i].vertexBuffer, m_geometryInstances[i].vertexCount,
+                 m_geometryInstances[i].vertexOffset, m_geometryInstances[i].indexBuffer,
+                 m_geometryInstances[i].indexCount, m_geometryInstances[i].indexOffset},
             });
-        instances.push_back({m_BottomLevelAS[i].structure, m_GeometryInstances[i].transform});
+        instances.push_back({m_bottomLevelAS[i].structure, m_geometryInstances[i].transform});
     }
 
     createTopLevelAS(commandBuffer, instances, VK_FALSE);
@@ -1894,7 +1981,7 @@ void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
 
 void vkContext::createRaytracingDescriptorSet()
 {
-    auto& model = m_models[0];
+    auto&          model       = m_models[0];
 
     VkBufferMemoryBarrier barrier = {};
     barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -1952,7 +2039,7 @@ void vkContext::createRaytracingDescriptorSet()
     descSetASInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
     descSetASInfo.pNext = nullptr;
     descSetASInfo.accelerationStructureCount = 1;
-    descSetASInfo.pAccelerationStructures    = &m_TopLevelAS.structure;
+    descSetASInfo.pAccelerationStructures    = &m_topLevelAS.structure;
 
     m_rtDSG.Bind(m_rtDescriptorSet, 0, {descSetASInfo});
 
@@ -2014,10 +2101,12 @@ void vkContext::createRaytracingDescriptorSet()
 
 void vkContext::updateRaytracingRenderTarget(VkImageView target)
 {
-    VkDescriptorImageInfo imageInfo   = {};
-    VkSampler             sampler     = VK_NULL_HANDLE;
-    VkImageView           imageView   = target;
-    VkImageLayout         imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    // Output buffer
+    VkDescriptorImageInfo imageInfo = {};
+    imageInfo.sampler               = VK_NULL_HANDLE;
+    imageInfo.imageView             = target;
+    imageInfo.imageLayout           = VK_IMAGE_LAYOUT_GENERAL;
 
     m_rtDSG.Bind(m_rtDescriptorSet, 1, {imageInfo});
     m_rtDSG.UpdateSetContents(m_device, m_rtDescriptorSet);
@@ -2029,12 +2118,11 @@ void vkContext::updateRaytracingRenderTarget(VkImageView target)
 
 void vkContext::createRaytracingPipeline()
 {
-
     RayTracingPipelineGenerator pipelineGen;
 
     VkShaderModule rayGenModule =
         VkTools::createShaderModule("../../shaders/pathRT.rgen.spv", m_device);
-    m_raygenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
+    m_rayGenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
 
     VkShaderModule missModule =
         VkTools::createShaderModule("../../shaders/pathRT.rmiss.spv", m_device);
@@ -2073,14 +2161,13 @@ void vkContext::createRaytracingPipeline()
 
 void vkContext::createShaderBindingTable()
 {
-
-    m_sbtGen.AddRayGenerationProgram(m_raygenIndex, {});
+    m_sbtGen.AddRayGenerationProgram(m_rayGenIndex, {});
     m_sbtGen.AddMissProgram(m_missIndex, {});
     m_sbtGen.AddMissProgram(m_shadowMissIndex, {});
     m_sbtGen.AddHitGroup(m_hitGroupIndex, {});
     m_sbtGen.AddHitGroup(m_shadowHitGroupIndex, {});
 
-    VkDeviceSize shaderBindingTableSize = m_sbtGen.ComputeSBTSize(m_RaytracingProperties);
+    VkDeviceSize shaderBindingTableSize = m_sbtGen.ComputeSBTSize(m_raytracingProperties);
 
     VkTools::createBufferNoVMA(m_device, m_gpu.physicalDevice, shaderBindingTableSize,
                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,

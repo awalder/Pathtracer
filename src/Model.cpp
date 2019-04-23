@@ -244,8 +244,7 @@ void VkTools::Model::createBuffers()
     vmaUnmapMemory(vkctx->getAllocator(), mStagingBufferMemory);
 
     VkTools::createBuffer(vkctx->getAllocator(), materialBufferSizeInBytes,
-                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-                              | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                           &materialBuffer, &materialMemory);
 
