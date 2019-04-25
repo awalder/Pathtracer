@@ -46,7 +46,7 @@ buffer needs to be kept until the command list execution is finished.
 */
 
 #include "vkRT_TLAS.h"
-#include "vkTools.h"
+//#include "vkTools.h"
 
 
 //--------------------------------------------------------------------------------------------------

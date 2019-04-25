@@ -35,7 +35,7 @@ dispatch rays description.
 */
 
 #include "vkRT_SBT.h"
-#include "vkTools.h"
+//#include "vkTools.h"
 
 #include <algorithm>
 

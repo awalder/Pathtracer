@@ -47,6 +47,8 @@ add_executable(${NAME}
                src/CameraControls.h
                src/sobolSampler.cpp
                src/sobolSampler.h
+               src/vkRTX_setup.cpp
+               src/vkRTX_setup.h
                src/implementations.cpp)
 
 target_link_libraries(${NAME}

@@ -123,7 +123,6 @@ struct Texture
     std::string   path;
 };
 
-//class VkContext;
 struct Model
 {
     Model(const vkContext* ctx, const std::string& path)

@@ -1,4 +1,6 @@
-project(RTX)
+project(rtlib)
+
+find_package(Vulkan REQUIRED)
 
 add_library(${PROJECT_NAME} STATIC
             vkRT_BLAS.cpp
@@ -15,4 +17,7 @@ add_library(${PROJECT_NAME} STATIC
 
 add_library(rtlib::rtlib ALIAS ${PROJECT_NAME})
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${Vulkan_LIBRARY})
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+                            ${CMAKE_SOURCE_DIR}/external)

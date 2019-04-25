@@ -28,10 +28,11 @@
 #define VULKAN_PATCH_VERSION 101
 
 #include "Model.h"
+#include "sobolSampler.h"
 #include "vkDebugLayers.h"
+#include "vkRTX_setup.h"
 #include "vkTools.h"
 #include "vkWindow.h"
-#include "sobolSampler.h"
 
 class vkContext
 {
@@ -43,10 +44,22 @@ class vkContext
         cleanUp();
     }
 
-    VkDevice      getDevice() const { return m_device; }
-    VmaAllocator  getAllocator() const { return m_allocator; }
-    VkCommandPool getCommandPool() const { return m_graphics.commandPool; }
-    VkQueue       getQueue() const { return m_queue; }
+    VkDevice         getDevice() const { return m_device; }
+    VkPhysicalDevice getPhysicalDevice() const { return m_gpu.physicalDevice; }
+    VmaAllocator     getAllocator() const { return m_allocator; }
+    VkCommandPool    getCommandPool() const { return m_graphics.commandPool; }
+    VkQueue          getQueue() const { return m_queue; }
+
+    struct UniformBufferObject
+    {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 modelIT;
+
+        glm::mat4 viewInverse;
+        glm::mat4 projInverse;
+    };
 
     private:
     void initVulkan();
@@ -107,17 +120,6 @@ class vkContext
     //    VkQueue       queue = VK_NULL_HANDLE;
     //};
 
-    struct UniformBufferObject
-    {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 modelIT;
-
-        glm::mat4 viewInverse;
-        glm::mat4 projInverse;
-    };
-
     //struct  // Models
     //{
     //    VkTools::Model model;
@@ -125,6 +127,7 @@ class vkContext
 
     std::unique_ptr<vkWindow>             m_window;
     std::unique_ptr<vkDebugAndExtensions> m_debugAndExtensions;
+    std::unique_ptr<VkRTX>                m_vkRTX;
     bool                                  m_renderMode_Raster = true;
     uint32_t                              m_currentImage      = 0;
     VkInstance                            m_instance          = VK_NULL_HANDLE;
@@ -197,7 +200,6 @@ class vkContext
         UniformBufferObject          ubo;
 
         VkRenderPass renderpassImGui = VK_NULL_HANDLE;
-        //VkPipeline                   pipelineImGui       = VK_NULL_HANDLE;
 
         struct  // Depth
         {
@@ -208,93 +210,10 @@ class vkContext
         } depth;
     } m_graphics;
 
-    // ------------------------------------------------------------------------
-    //NV RTX
+    // ---------------------------
+    // RTX related items
 
-
-    struct GeometryInstance
-    {
-        VkBuffer     vertexBuffer;
-        uint32_t     vertexCount;
-        VkDeviceSize vertexOffset;
-        VkBuffer     indexBuffer;
-        uint32_t     indexCount;
-        VkDeviceSize indexOffset;
-        glm::mat4    transform;
-    };
-
-
-    struct AccelerationStructure
-    {
-        VkBuffer                  scratchBuffer   = VK_NULL_HANDLE;
-        VkDeviceMemory            scratchMemory   = VK_NULL_HANDLE;
-        VkBuffer                  resultBuffer    = VK_NULL_HANDLE;
-        VkDeviceMemory            resultMemory    = VK_NULL_HANDLE;
-        VkBuffer                  instancesBuffer = VK_NULL_HANDLE;
-        VkDeviceMemory            instancesMemory = VK_NULL_HANDLE;
-        VkAccelerationStructureNV structure       = VK_NULL_HANDLE;
-    };
-
-
-    void initRaytracing();
-    void createGeometryInstances();
-
-    AccelerationStructure createBottomLevelAS(VkCommandBuffer               commandBuffer,
-                                              std::vector<GeometryInstance> vVertexBuffers);
-
-    void createTopLevelAS(
-        VkCommandBuffer                                                     commandBuffer,
-        const std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>>& instances,
-        VkBool32                                                            updateOnly);
-
-    void createAccelerationStructures();
-    void destroyAccelerationStructures(const AccelerationStructure& as);
-
-    void createRaytracingDescriptorSet();
-    void updateRaytracingRenderTarget(VkImageView target);
-    void createRaytracingPipeline();
-    void createShaderBindingTable();
-
-    VkRenderPass               m_rtRenderpass = VK_NULL_HANDLE;
-    std::vector<VkImage>       m_rtImages;
-    std::vector<VkFramebuffer> m_rtFrameBuffers;
-    std::vector<VkImageView>   m_rtViews;
-
-
-    VkPhysicalDeviceRayTracingPropertiesNV m_raytracingProperties = {};
-    std::vector<GeometryInstance>          m_geometryInstances;
-
-    TopLevelASGenerator                m_topLevelASGenerator;
-    AccelerationStructure              m_topLevelAS;
-    std::vector<AccelerationStructure> m_bottomLevelAS;
-
-    DescriptorSetGenerator m_rtDSG;
-    VkDescriptorPool       m_rtDescriptorPool      = VK_NULL_HANDLE;
-    VkDescriptorSetLayout  m_rtDescriptorSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSet        m_rtDescriptorSet       = VK_NULL_HANDLE;
-
+    VkRenderPass  m_rtRenderpass    = VK_NULL_HANDLE;
     VkBuffer      m_rtUniformBuffer = VK_NULL_HANDLE;
     VmaAllocation m_rtUniformMemory = VK_NULL_HANDLE;
-
-    std::vector<VkCommandBuffer> m_rtCommandBuffers;
-
-    //std::vector<VkImage>       m_textureImage;
-    //std::vector<VmaAllocation> m_textureImageMemory;
-    //std::vector<VkImageView>   m_textureImageView;
-    //std::vector<VkSampler>     m_textureSampler;
-
-
-    VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
-    VkPipeline       m_rtPipeline       = VK_NULL_HANDLE;
-
-    uint32_t m_rayGenIndex;
-    uint32_t m_hitGroupIndex;
-    uint32_t m_missIndex;
-
-    uint32_t m_shadowMissIndex;
-    uint32_t m_shadowHitGroupIndex;
-
-    ShaderBindingTableGenerator m_sbtGen;
-    VkBuffer                    m_sbtBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory              m_sbtMemory = VK_NULL_HANDLE;
 };

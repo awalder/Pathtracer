@@ -106,6 +106,11 @@ desc.HitGroupTable.StrideInBytes = m_sbtHelper.GetHitGroupEntrySize();
 */
 
 #pragma once
+
+#ifndef ROUND_UP
+#define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
+#endif
+
 #include "vulkan/vulkan.h"
 #include <vector>
 

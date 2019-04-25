@@ -100,6 +100,3 @@ std::string replaceSubString(const std::string& str, const std::string& from, co
 #define VK_CHECK_RESULT
 #endif
 
-#ifndef ROUND_UP
-#define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
-#endif
