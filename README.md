@@ -2,7 +2,7 @@
 ## Table of Contents
 + [Description](#Description)
 + [Building](#Building)
-+ [Current state](#Current state)
++ [Current state](#Currentstate)
 
 ## <a name="Description"></a> Description
 Purpose of this project is to create bidirectional pathtracer (BDPT) taking advantage of the RT-cores present
@@ -19,11 +19,11 @@ Use cmake to build Visual studio makefiles
 cmake -G "Visual Studio 15 Win64"
 ```
 
-## <a name="Current state"></a> Current state
+## <a name="Currentstate"></a> Current state
 This is still work on progress. Currently can load scene, render it using rasterizing pipeline or raytrace using RT-cores.
 No actual pathtracing performed yet.
 
-## External libraries used:
+## External libraries used
 - [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
 - [GLFW window manager](https://www.glfw.org/)
 - [OpenGL mathematics (GLM)](https://glm.g-truc.net/)
