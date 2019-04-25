@@ -7,7 +7,7 @@
 #include <spdlog/spdlog.h>
 
 //#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw_vulkan.h>
+#include <imgui_impl_glfw_vulkan.h>
 //#include <imgui/imgui_impl_glfw.h>
 //#include <imgui/imgui_impl_vulkan.h>
 
@@ -61,8 +61,8 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
-    LoadModelFromFile("../../scenes/conference/conference.obj");
-    //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
+    //LoadModelFromFile("../../scenes/conference/conference.obj");
+    LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
 
@@ -277,12 +277,15 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     //const ImVec2        windowPos(m_swapchain.extent.width - windowSize.x, 0.0f);
 
 
+    const auto& io   = ImGui::GetIO();
+
     ImGui_ImplGlfwVulkan_NewFrame();
-    //ImGui::ShowDemoWindow();
 
     ImGui::Begin("Settings");
     ImGui::SetWindowSize(windowSize, 0);
     ImGui::SetNextWindowPos(windowPos, 0);
+
+    ImGui::Text("%.3f ms/frame", 1000.0f / io.Framerate);
 
     ImGui::Checkbox("RTX ON", &m_settings.RTX_ON);
     ImGui::SliderFloat("zNear", m_settings.zNear, 0.001f, 100.0f, "%.3f", 4.0f);
@@ -291,10 +294,6 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     ImGui::End();
 
 
-    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
-    //            ImGui::GetIO().Framerate);
-    //static int b = 0;
-    //ImGui::Text("Counter: %.2f", m_runTime);
     ImGui_ImplGlfwVulkan_Render(commandBuffer);
 }
 
@@ -1981,7 +1980,7 @@ void vkContext::destroyAccelerationStructures(const AccelerationStructure& as)
 
 void vkContext::createRaytracingDescriptorSet()
 {
-    auto&          model       = m_models[0];
+    auto& model = m_models[0];
 
     VkBufferMemoryBarrier barrier = {};
     barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;

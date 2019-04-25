@@ -1,6 +1,8 @@
 #version 460
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : require
+
 
 layout(location = 0) rayPayloadInNV vec3 hitValue;
 layout(location = 2) rayPayloadNV bool isShadowed;
@@ -12,24 +14,31 @@ layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 3, set = 0) buffer Vertices
 {
     vec4 v[];
-} vertices;
+}
+vertices;
 
 layout(binding = 4, set = 0) buffer Indices
 {
     uint i[];
-} indices;
+}
+indices;
 
 layout(binding = 5, set = 0) buffer MatColorBufferObject
 {
     vec4[] m;
-} materials;
+}
+materials;
 
 layout(binding = 6, set = 0) uniform sampler2D[] textureSamplers;
+
+#define M_PI 3.141592653589
+#define M_2PI 2.0 * 3.141592653589
+#define INV_PI 1.0 / 3.141592653589
 
 struct Vertex
 {
     vec3 pos;
-    vec3 nrm;
+    vec3 normal;
     vec3 color;
     vec2 texCoord;
     int  matIndex;
@@ -46,7 +55,7 @@ Vertex unpackVertex(uint index)
     vec4 d2 = vertices.v[vertexSize * index + 2];
 
     v.pos      = d0.xyz;
-    v.nrm      = vec3(d0.w, d1.x, d1.y);
+    v.normal   = vec3(d0.w, d1.x, d1.y);
     v.color    = vec3(d1.z, d1.w, d2.x);
     v.texCoord = vec2(d2.y, d2.z);
     v.matIndex = floatBitsToInt(d2.w);
@@ -91,6 +100,30 @@ WaveFrontMaterial unpackMaterial(int matIndex)
     return m;
 }
 
+mat3 formBasis(vec3 n)
+{
+    mat3 R;
+    vec3 T, B;
+    if(n.z < -0.9999999f)
+    {
+        T = vec3(0.0, -1.0, 0.0);
+        B = vec3(-1.0, 0.0, 0.0);
+    }
+    else
+    {
+        const float a = 1.0f / (1.0f + n.z);
+        const float b = -n.x * n.y * a;
+        T             = vec3(1.0f - n.x * n.x * a, b, -n.x);
+        B             = vec3(b, 1.0f - n.y * n.y * a, -n.y);
+    }
+
+    R[0] = T;
+    R[1] = B;
+    R[2] = n;
+    return R;
+}
+
+
 void main()
 {
 
@@ -101,18 +134,17 @@ void main()
     Vertex v1 = unpackVertex(ind.y);
     Vertex v2 = unpackVertex(ind.z);
 
-    const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+    WaveFrontMaterial mat          = unpackMaterial(v1.matIndex);
+    const vec3        barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-    vec3 normal =
-        normalize(v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z);
+    vec3 normal = normalize(v0.normal * barycentrics.x + v1.normal * barycentrics.y
+                            + v2.normal * barycentrics.z);
 
     vec3 lightVector = normalize(vec3(5, 4, 3));
 
-    float dot_product = max(dot(lightVector, normal), 0.2);
+    float cosTheta = max(dot(lightVector, normal), 0.2);
 
-    WaveFrontMaterial mat = unpackMaterial(v1.matIndex);
-
-    vec3 c = dot_product * mat.diffuse;
+    vec3 c = cosTheta * mat.diffuse;
     if(mat.textureId >= 0)
     {
         vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y

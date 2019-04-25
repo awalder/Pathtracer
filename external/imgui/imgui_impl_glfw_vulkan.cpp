@@ -24,8 +24,8 @@
 //  2016-10-15: Misc: Added a void* user_data parameter to Clipboard function handlers.
 //  2016-08-27: Vulkan: Fix Vulkan example for use when a depth buffer is active.
 
-#include "imgui.h"
-#include "imgui_impl_glfw_vulkan.h"
+#include "include/imgui.h"
+#include "include/imgui_impl_glfw_vulkan.h"
 
 // GLFW
 #define GLFW_INCLUDE_NONE

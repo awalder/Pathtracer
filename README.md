@@ -1,5 +1,8 @@
+
+
+
 This is still work on progress.
-Project contains CMakeLists.txt and Visual Studio 2017 buildfiles can be created. No other environments have yet been tested.
+Project contains CMakeLists.txt and VS2017 or VS2019 makefiles can be created. No other environments have yet been tested.
 
 Nvidia drivers 425.31 begun supporting VK_NVX_raytracing extensions on Pascal generation graphics cards also, not exclusive feature for 20xx cards anymore.
 

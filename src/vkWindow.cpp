@@ -1,5 +1,5 @@
 #include "vkWindow.h"
-#include <imgui/imgui_impl_glfw_vulkan.h>
+#include <imgui_impl_glfw_vulkan.h>
 #include <iostream>
 
 void vkWindow::initGLFW()

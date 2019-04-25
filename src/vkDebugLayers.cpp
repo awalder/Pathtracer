@@ -56,7 +56,7 @@ void vkDebugAndExtensions::setupDebugMessenger(VkInstance m_instance)
     debugInfo.pUserData       = nullptr;
 
     VK_CHECK_RESULT(createDebugUtilsMessengerEXT(m_instance, &debugInfo, nullptr, &m_Messenger));
-    std::cout << "\n** DebugUtilsMessenger object created **" << std::endl;
+    //std::cout << "\n** DebugUtilsMessenger object created **" << std::endl;
 }
 
 void vkDebugAndExtensions::cleanUp(VkInstance m_instance)
@@ -64,7 +64,7 @@ void vkDebugAndExtensions::cleanUp(VkInstance m_instance)
     if(m_Messenger != VK_NULL_HANDLE)
     {
         destroyDebugUtilsMessengerEXT(m_instance, m_Messenger, nullptr);
-        std::cout << "\n** DebugUtilsMessenger object destroyed **" << std::endl;
+        //std::cout << "\n** DebugUtilsMessenger object destroyed **" << std::endl;
     }
 }
 

@@ -5,5 +5,7 @@ layout(location = 0) rayPayloadInNV vec3 hitValue;
 
 void main()
 {
-    hitValue = vec3(0.1, 0.9, 0.3);
+    hitValue = vec3(0.2, 0.4, 0.2);
+    //vec2 uv  = gl_LaunchIDNV.xy / gl_LaunchSizeNV.xy;
+    //hitValue = vec3(uv, 0.3);
 }
