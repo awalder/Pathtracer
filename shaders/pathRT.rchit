@@ -151,6 +151,8 @@ void main()
                         + v2.texCoord * barycentrics.z;
         c *= texture(textureSamplers[mat.textureId], texCoord).xyz;
     }
+    c += mat.emission;
+
     float tmin   = 0.001;
     float tmax   = 100.0;
     vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;

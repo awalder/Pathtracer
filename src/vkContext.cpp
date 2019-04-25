@@ -62,9 +62,11 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
-    LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
+    //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
+
+    //setupLowDiscrepancySampler();
 
     initRaytracing();
     createGeometryInstances();
@@ -277,7 +279,7 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     //const ImVec2        windowPos(m_swapchain.extent.width - windowSize.x, 0.0f);
 
 
-    const auto& io   = ImGui::GetIO();
+    const auto& io = ImGui::GetIO();
 
     ImGui_ImplGlfwVulkan_NewFrame();
 
@@ -1071,6 +1073,16 @@ void vkContext::updateGraphicsUniforms()
     vmaMapMemory(m_allocator, m_rtUniformMemory, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_rtUniformMemory);
+}
+
+void vkContext::setupLowDiscrepancySampler()
+{
+    SobolSampler sampler(this);
+
+    VkExtent2D     windowSize = m_window->getWindowSize();
+    const uint32_t numLayers  = 32;
+
+    sampler.Generate(windowSize.width, windowSize.height, numLayers);
 }
 
 // ----------------------------------------------------------------------------

@@ -8,6 +8,7 @@ project(${NAME}
 find_package(Vulkan REQUIRED)
 set(VULKAN_LIBRARY ${Vulkan_LIBRARY})
 find_library(ASSIMP_LIBRARY NAMES assimp PATHS ${CMAKE_SOURCE_DIR}/lib/assimp)
+find_package(OpenMP)
 
 find_library(glfw_LIBRARY
              NAMES glfw3.lib
@@ -16,6 +17,7 @@ find_library(glfw_LIBRARY
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/spdlog)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/sobol)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/imgui)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/NVIDIA_RTX)
 
 if(MSVC)
   add_compile_options("/W4" "$<$<CONFIG:RELEASE>:/O2>" "/fp:fast" "/arch:AVX2")
@@ -43,28 +45,19 @@ add_executable(${NAME}
                src/Model.h
                src/CameraControls.cpp
                src/CameraControls.h
-               src/vkRT_Import.cpp
-               src/vkRT_BLAS.cpp
-               src/vkRT_BLAS.h
-               src/vkRT_TLAS.cpp
-               src/vkRT_TLAS.h
-               src/vkRT_SBT.cpp
-               src/vkRT_SBT.h
-               src/vkRT_Pipeline.cpp
-               src/vkRT_Pipeline.h
-               src/vkRT_DescriptorSets.cpp
-               src/vkRT_DescriptorSets.h
                src/sobolSampler.cpp
                src/sobolSampler.h
                src/implementations.cpp)
 
 target_link_libraries(${NAME}
                       PRIVATE ${Vulkan_LIBRARY}
+                              OpenMP::OpenMP_CXX
                               ${glfw_LIBRARY}
                               ${ASSIMP_LIBRARY}
                               spdlog
                               sobol
-                              imgui)
+                              imgui
+                              rtlib)
 
 target_include_directories(${NAME}
                            PUBLIC ${CMAKE_SOURCE_DIR}/external
