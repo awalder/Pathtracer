@@ -2,6 +2,7 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : require
+//#extension GL_ARB_gpu_shader_int64 : require
 
 layout(location = 0) rayPayloadInNV vec3 hitValue;
 layout(location = 2) rayPayloadNV bool isShadowed;
@@ -24,17 +25,23 @@ indices;
 
 layout(binding = 5, set = 0) buffer MatColorBufferObject
 {
-    vec4[] m;
+    vec4 m[];
 }
 materials;
 
 layout(binding = 6, set = 0) uniform sampler2D[] textureSamplers;
 
-layout(binding = 7, set = 0) uniform sampler2DArray samplerArray;
+layout(binding = 7, set = 0) uniform sampler2DArray scrambleSampler;
+
+layout(binding = 8, set = 0) buffer SobolMatrices
+{
+    uint sm[];
+}
+sobolMatrices;
 
 #define M_PI 3.141592653589
-#define M_2PI 2.0 * 3.141592653589
-#define INV_PI 1.0 / 3.141592653589
+#define M_2PI 2.0 * M_PI
+#define INV_PI 1.0 / M_PI
 
 struct Vertex
 {
@@ -101,6 +108,7 @@ WaveFrontMaterial unpackMaterial(int matIndex)
     return m;
 }
 
+
 mat3 formBasis(vec3 n)
 {
     mat3 R;
@@ -124,9 +132,32 @@ mat3 formBasis(vec3 n)
     return R;
 }
 
-// Cosine weighed hemisphere sample based on shirley-chiu mapping
-vec3 hemisphereSample(float s[2])
+float sobol1DSample(uint index, const uint dimension, const uint scramble)
 {
+    // These values are from the sobol implementation from sobol.h/cpp
+    const uint dimensions = 1024;
+    const uint size       = 52;
+
+    uint result = scramble;
+    for(uint i = dimension * size; index != 0; index >>= 1, ++i)
+    {
+        if(uint(index & 1) == 1)
+            result = result ^ sobolMatrices.sm[i];
+    }
+
+    //return result * (1.0 / (uint(1) << 32));
+    return result * 0.00000000023283064;
+}
+
+// Cosine weighed hemisphere sample based on shirley-chiu mapping
+vec3 hemisphereSample(uint index, uint scramble[2])
+{
+    float s[2];
+    for(int d = 0; d < 2; ++d)
+    {
+        s[d] = sobol1DSample(index, d, scramble[d]);
+    }
+
     float       phi, r;
     const float a = 2.0 * s[0] - 1.0;
     const float b = 2.0 * s[1] - 1.0;
@@ -148,6 +179,7 @@ vec3 hemisphereSample(float s[2])
 
     return vec3(x, y, z);
 }
+
 
 void main()
 {
@@ -174,41 +206,43 @@ void main()
     vec3 normal = normalize(v0.normal * barycentrics.x + v1.normal * barycentrics.y
                             + v2.normal * barycentrics.z);
 
-    vec3 lightVector = normalize(vec3(5, 4, 3));
-
-    float cosTheta = max(dot(lightVector, normal), 0.2);
-
-    vec3 c = cosTheta * mat.diffuse;
-    if(mat.textureId >= 0)
+    if(dot(normal, gl_WorldRayDirectionNV) > 0.0)
     {
-        vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
-                        + v2.texCoord * barycentrics.z;
-        c *= texture(textureSamplers[mat.textureId], texCoord).xyz;
+        normal = -normal;
     }
-    c += mat.emission;
 
-    //float a = vec4(texture(samplerArray, vec3(barycentrics.yz, 0))).r;
-    //float b = vec4(texture(samplerArray, vec3(barycentrics.yz, 1))).r;
+    //vec3 lightVector = normalize(vec3(5, 4, 3));
 
-    //c = vec3((a + b) * 0.5);
+    //float cosTheta = max(dot(lightVector, normal), 0.2);
 
-     //Test AO
+    //vec3 c = cosTheta * mat.diffuse;
+    //if(mat.textureId >= 0)
+    //{
+    //    vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
+    //                    + v2.texCoord * barycentrics.z;
+    //    c *= texture(textureSamplers[mat.textureId], texCoord).xyz;
+    //}
+    //c += mat.emission;
+
+    //Test AO
     float tmin   = 0.001;
     float tmax   = 1.0;
-    vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
-    mat3  ONB      = formBasis(normal);
+    vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * (0.99999 * gl_HitTNV);
+    mat3  ONB    = formBasis(normal);
 
-    const int aoNumRays    = 15;
+    uint       sobolIndex  = 12738917;
+    const uint s1          = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 0))).r);
+    const uint s2          = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 1))).r);
+    const uint scramble[2] = {s1, s2};
+
+    const int aoNumRays    = 64;
     int       aoNoHitCount = 0;
     for(int i = 0; i < aoNumRays; ++i)
     {
-        float s[2];
-        s[0]       = vec4(texture(samplerArray, vec3(samplerUV, currentSampleLayer++))).r;
-        s[1]       = vec4(texture(samplerArray, vec3(samplerUV, currentSampleLayer++))).r;
-        vec3 dir   = vec3(normalize(ONB * hemisphereSample(s)) * 0.4);
+        vec3 v   = hemisphereSample(sobolIndex++, scramble);
+        vec3 dir = normalize(ONB * v) * vec3(0.2);
+
         isShadowed = true;
-
-
         traceNV(topLevelAS,
                 gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
                     | gl_RayFlagsSkipClosestHitShaderNV,
@@ -220,8 +254,8 @@ void main()
         }
     }
 
-    c = vec3(aoNoHitCount / aoNumRays);
-    hitValue = c;
+    hitValue = vec3(float(aoNoHitCount) / float(aoNumRays));
+    //hitValue = vv;
 
 
     //float tmin   = 0.001;

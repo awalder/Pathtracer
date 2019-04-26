@@ -101,6 +101,13 @@ void vkContext::mainLoop()
 
         renderFrame();
 
+        //m_vkRTX->generateNewScrambles();
+        //m_vkRTX->updateScrambleValueImage();
+
+
+
+
+
         auto endTime = std::chrono::high_resolution_clock::now();
         m_deltaTime =
             std::chrono::duration<float, std::chrono::seconds::period>(endTime - startTime).count();

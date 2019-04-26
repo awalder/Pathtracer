@@ -17,16 +17,21 @@ cam;
 
 layout(location = 0) rayPayloadNV vec3 hitValue;
 
-layout(binding = 7, set = 0) uniform sampler2DArray samplerArray;
+layout(binding = 7, set = 0) uniform sampler2DArray scrambleSampler;
+layout(binding = 8, set = 0) buffer SobolMatrices
+{
+    uint sm[];
+}
+sobolMatrices;
 
 void main()
 {
-    const vec2        uv = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
-    const float x = vec4(texture(samplerArray, vec3(uv, 0))).r;
-    const float y = vec4(texture(samplerArray, vec3(uv, 1))).r;
+    //const vec2        uv = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
+    //const float x = vec4(texture(samplerArray, vec3(uv, 0))).r;
+    //const float y = vec4(texture(samplerArray, vec3(uv, 1))).r;
 
-    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(x, y);
-    //const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+    //const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(x, y);
+    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeNV.xy);
     vec2       d           = inUV * 2.0 - 1.0;
 

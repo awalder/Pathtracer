@@ -33,18 +33,28 @@ class VkRTX
                              VkFramebuffer   frameBuffer,
                              VkImage         image);
 
+    void generateNewScrambles();
+    void updateScrambleValueImage();
     void cleanUp();
 
     private:
-
-        void generateSobolSamples(uint32_t width, uint32_t height, uint32_t layers);
+    void                               initSobolResources();
+    void                               copySobolMatricesToGPU();
+    std::vector<std::vector<uint32_t>> m_scrambles;
+    const int                     m_numLayers           = 32;
+    size_t                             m_scrambleSizeInBytes = 0;
+    bool                               m_firstRun            = true;
 
     struct
     {
-        VkSampler     sampler = VK_NULL_HANDLE;
-        VkImage       image   = VK_NULL_HANDLE;
-        VkImageView   view    = VK_NULL_HANDLE;
-        VmaAllocation memory  = VK_NULL_HANDLE;
+        VkSampler     sampler        = VK_NULL_HANDLE;
+        VkImage       scrambleImage  = VK_NULL_HANDLE;
+        VkImageView   scrambleView   = VK_NULL_HANDLE;
+        VmaAllocation scrambleMemory = VK_NULL_HANDLE;
+        VkBuffer      hostSideBuffer = VK_NULL_HANDLE;
+        VmaAllocation hostsideMemory = VK_NULL_HANDLE;
+        VkBuffer      matrixBuffer   = VK_NULL_HANDLE;
+        VmaAllocation matrixMemory   = VK_NULL_HANDLE;
     } m_sobol;
 
 
