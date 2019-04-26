@@ -1,7 +1,6 @@
 #include "sobolSampler.h"
 
 #include <omp.h>
-#include <sobol.h>
 #include <vector>
 
 #include "vkContext.h"

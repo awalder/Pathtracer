@@ -28,7 +28,6 @@
 #define VULKAN_PATCH_VERSION 101
 
 #include "Model.h"
-#include "sobolSampler.h"
 #include "vkDebugLayers.h"
 #include "vkRTX_setup.h"
 #include "vkTools.h"
@@ -113,17 +112,7 @@ class vkContext
 
     void LoadModelFromFile(const std::string& objPath);
 
-    //struct cmdBufInfo
-    //{
-    //    VkDevice      device = VK_NULL_HANDLE;
-    //    VkCommandPool pool = VK_NULL_HANDLE;
-    //    VkQueue       queue = VK_NULL_HANDLE;
-    //};
 
-    //struct  // Models
-    //{
-    //    VkTools::Model model;
-    //} m_models;
 
     std::unique_ptr<vkWindow>             m_window;
     std::unique_ptr<vkDebugAndExtensions> m_debugAndExtensions;

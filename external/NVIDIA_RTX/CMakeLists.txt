@@ -13,11 +13,14 @@ add_library(${PROJECT_NAME} STATIC
             vkRT_SBT.cpp
             vkRT_SBT.h
             vkRT_TLAS.cpp
-            vkRT_TLAS.h)
+            vkRT_TLAS.h
+            sobol/sobol.cpp
+            sobol/sobol.h)
 
 add_library(rtlib::rtlib ALIAS ${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Vulkan_LIBRARY})
+
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
                             ${CMAKE_SOURCE_DIR}/external)

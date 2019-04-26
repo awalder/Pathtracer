@@ -189,8 +189,6 @@ void VkTools::Model::createBuffers()
     VmaAllocation iStagingBufferMemory;
     VkBuffer      mStagingBuffer;
     VmaAllocation mStagingBufferMemory;
-    VkBuffer      tStagingBuffer;
-    VmaAllocation tStagingBufferMemory;
 
 
     // Vertices
@@ -275,7 +273,6 @@ void VkTools::Model::createTextures()
 {
     if(m_texturePaths.empty())
     {
-        //int width = 1, height = 1;
         int          width = 1, height = 1;
         glm::u8vec4* color  = new glm::u8vec4(255, 255, 255, 255);
         stbi_uc*     pixels = reinterpret_cast<stbi_uc*>(color);

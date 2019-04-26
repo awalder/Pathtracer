@@ -23,7 +23,10 @@ class VkRTX
     {
     }
 
-    void initRaytracing(VkPhysicalDevice gpu, std::vector<Model>* models, VkBuffer* uniformBuffer, VmaAllocation* uniformMemory);
+    void initRaytracing(VkPhysicalDevice    gpu,
+                        std::vector<Model>* models,
+                        VkBuffer*           uniformBuffer,
+                        VmaAllocation*      uniformMemory);
     void updateRaytracingRenderTarget(VkImageView target);
     void recordCommandBuffer(VkCommandBuffer cmdBuf,
                              VkRenderPass    renderpass,
@@ -32,7 +35,18 @@ class VkRTX
 
     void cleanUp();
 
-    //VkRenderPass getRendepass() { return m_rtRenderpass; }
+    private:
+
+        void generateSobolSamples(uint32_t width, uint32_t height, uint32_t layers);
+
+    struct
+    {
+        VkSampler     sampler = VK_NULL_HANDLE;
+        VkImage       image   = VK_NULL_HANDLE;
+        VkImageView   view    = VK_NULL_HANDLE;
+        VmaAllocation memory  = VK_NULL_HANDLE;
+    } m_sobol;
+
 
     private:
     vkContext*          m_vkctx = nullptr;
@@ -64,9 +78,7 @@ class VkRTX
         VkAccelerationStructureNV structure       = VK_NULL_HANDLE;
     };
 
-
-    void createGeometryInstances();
-
+    void                  createGeometryInstances();
     AccelerationStructure createBottomLevelAS(VkCommandBuffer               commandBuffer,
                                               std::vector<GeometryInstance> vVertexBuffers);
 

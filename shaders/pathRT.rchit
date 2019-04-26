@@ -3,7 +3,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : require
 
-
 layout(location = 0) rayPayloadInNV vec3 hitValue;
 layout(location = 2) rayPayloadNV bool isShadowed;
 
@@ -30,6 +29,8 @@ layout(binding = 5, set = 0) buffer MatColorBufferObject
 materials;
 
 layout(binding = 6, set = 0) uniform sampler2D[] textureSamplers;
+
+layout(binding = 7, set = 0) uniform sampler2DArray samplerArray;
 
 #define M_PI 3.141592653589
 #define M_2PI 2.0 * 3.141592653589
@@ -123,9 +124,42 @@ mat3 formBasis(vec3 n)
     return R;
 }
 
+// Cosine weighed hemisphere sample based on shirley-chiu mapping
+vec3 hemisphereSample(float s[2])
+{
+    float       phi, r;
+    const float a = 2.0 * s[0] - 1.0;
+    const float b = 2.0 * s[1] - 1.0;
+
+    if(a * a > b * b)
+    {
+        r   = a;
+        phi = M_PI * 0.25 * (b / a);
+    }
+    else
+    {
+        r   = b;
+        phi = M_PI * 0.5 - M_PI * 0.25 * (a / b);
+    }
+
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - x * x - y * y));
+
+    return vec3(x, y, z);
+}
 
 void main()
 {
+    //
+    const vec2 samplerUV = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
+
+    // layers 0 and 1 are for raygen
+    int currentSampleLayer = 2;
+
+    // Hardcoded values for now
+    const int maxBounces = 4;
+    int       numBounce  = 0;
 
     ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID], indices.i[3 * gl_PrimitiveID + 1],
                       indices.i[3 * gl_PrimitiveID + 2]);
@@ -153,17 +187,54 @@ void main()
     }
     c += mat.emission;
 
+    //float a = vec4(texture(samplerArray, vec3(barycentrics.yz, 0))).r;
+    //float b = vec4(texture(samplerArray, vec3(barycentrics.yz, 1))).r;
+
+    //c = vec3((a + b) * 0.5);
+
+     //Test AO
     float tmin   = 0.001;
-    float tmax   = 100.0;
+    float tmax   = 1.0;
     vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
-    isShadowed   = true;
-    traceNV(topLevelAS,
-            gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
-                | gl_RayFlagsSkipClosestHitShaderNV,
-            0xFF, 1 /* sbtRecordOffset */, 0 /* sbtRecordStride */, 1 /* missIndex */, origin, tmin,
-            lightVector, tmax, 2 /*payload location*/);
-    if(isShadowed)
-        hitValue = c * 0.3;
-    else
-        hitValue = c;
+    mat3  ONB      = formBasis(normal);
+
+    const int aoNumRays    = 15;
+    int       aoNoHitCount = 0;
+    for(int i = 0; i < aoNumRays; ++i)
+    {
+        float s[2];
+        s[0]       = vec4(texture(samplerArray, vec3(samplerUV, currentSampleLayer++))).r;
+        s[1]       = vec4(texture(samplerArray, vec3(samplerUV, currentSampleLayer++))).r;
+        vec3 dir   = vec3(normalize(ONB * hemisphereSample(s)) * 0.4);
+        isShadowed = true;
+
+
+        traceNV(topLevelAS,
+                gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+                    | gl_RayFlagsSkipClosestHitShaderNV,
+                0xFF, 1 /* sbtRecordOffset */, 0 /* sbtRecordStride */, 1 /* missIndex */, origin,
+                tmin, dir, tmax, 2 /*payload location*/);
+        if(!isShadowed)
+        {
+            aoNoHitCount++;
+        }
+    }
+
+    c = vec3(aoNoHitCount / aoNumRays);
+    hitValue = c;
+
+
+    //float tmin   = 0.001;
+    //float tmax   = 100.0;
+    //vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
+    //isShadowed   = true;
+    //traceNV(topLevelAS,
+    //        gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+    //            | gl_RayFlagsSkipClosestHitShaderNV,
+    //        0xFF, 1 /* sbtRecordOffset */, 0 /* sbtRecordStride */, 1 /* missIndex */, origin, tmin,
+    //        lightVector, tmax, 2 /*payload location*/);
+    //if(isShadowed)
+    //    hitValue = c * 0.3;
+    //else
+    //    hitValue = c;
 }

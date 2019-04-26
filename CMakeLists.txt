@@ -15,7 +15,7 @@ find_library(glfw_LIBRARY
              PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib/glfw)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/spdlog)
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/sobol)
+#add_subdirectory(${CMAKE_SOURCE_DIR}/external/sobol)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/imgui)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/NVIDIA_RTX)
 
@@ -45,8 +45,8 @@ add_executable(${NAME}
                src/Model.h
                src/CameraControls.cpp
                src/CameraControls.h
-               src/sobolSampler.cpp
-               src/sobolSampler.h
+#               src/sobolSampler.cpp
+#               src/sobolSampler.h
                src/vkRTX_setup.cpp
                src/vkRTX_setup.h
                src/implementations.cpp)
@@ -57,7 +57,6 @@ target_link_libraries(${NAME}
                               ${glfw_LIBRARY}
                               ${ASSIMP_LIBRARY}
                               spdlog
-                              sobol
                               imgui
                               rtlib)
 

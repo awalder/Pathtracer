@@ -993,12 +993,12 @@ void vkContext::updateGraphicsUniforms()
 
 void vkContext::setupLowDiscrepancySampler()
 {
-    SobolSampler sampler(this);
+    //SobolSampler sampler(this);
 
-    VkExtent2D     windowSize = m_window->getWindowSize();
-    const uint32_t numLayers  = 32;
+    //VkExtent2D     windowSize = m_window->getWindowSize();
+    //const uint32_t numLayers  = 32;
 
-    sampler.Generate(windowSize.width, windowSize.height, numLayers);
+    //sampler.Generate(windowSize.width, windowSize.height, numLayers);
 }
 
 // ----------------------------------------------------------------------------
