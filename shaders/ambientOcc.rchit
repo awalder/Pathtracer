@@ -216,7 +216,7 @@ void main()
     //
     //const vec2 samplerUV = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
-    const vec2 samplerUV   = pixelCenter / vec2(gl_LaunchSizeNV.xy);
+    const vec2 samplerUV          = pixelCenter / vec2(gl_LaunchSizeNV.xy);
 
     // layers 0 and 1 are for raygen
     int currentSampleLayer = 2;
@@ -240,36 +240,25 @@ void main()
 
     if(dot(normal, gl_WorldRayDirectionNV) > 0.0)
     {
-        normal *= -1.0;
+        normal = -normal;
     }
 
-    //while(numBounce < maxBounces)
-    //{
-    //    numBounce++;
-    //}
-
-
-    //Test AO
     float tmin = 0.001;
     float tmax = 1.0;
-    vec3  Ro   = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
-    //vec3  Ro   = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * (0.99999 * gl_HitTNV);
-    mat3 ONB = formBasis(normal);
+    vec3  Ro   = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * (0.99999 * gl_HitTNV);
+    mat3  ONB  = formBasis(normal);
 
+    uint  sobolIndex = 0;
     uvec2 scramble;
-    scramble[0]     = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 0))).r);
-    scramble[1]     = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 1))).r);
-    uint sobolIndex = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 2))).r);
+    scramble[0] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 0))).r);
+    scramble[1] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 1))).r);
 
-    const int aoNumRays    = 128;
+    const int aoNumRays    = 16;
     int       aoNoHitCount = 0;
-    vec3      c            = vec3(0);
     for(int i = 0; i < aoNumRays; ++i)
     {
         vec3 v  = hemisphereSample(sobolIndex++, scramble);
-        vec3 Rd = normalize(ONB * v) * vec3(0.49);
-
-        c += Rd;
+        vec3 Rd = normalize(ONB * v) * vec3(0.2);
 
         isShadowed = true;
         traceNV(topLevelAS,
@@ -283,37 +272,5 @@ void main()
         }
     }
 
-    //c /= float(aoNumRays);
-    //c = c * 10.0;
-    //c        = normalize(c);
-    //hitValue = c;
     hitValue = vec3(float(aoNoHitCount) / float(aoNumRays));
-
-
-    //vec3 lightVector = normalize(vec3(5, 4, 3));
-
-    //float cosTheta = max(dot(lightVector, normal), 0.2);
-
-    //vec3 c = cosTheta * mat.diffuse;
-    //if(mat.textureId >= 0)
-    //{
-    //    vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
-    //                    + v2.texCoord * barycentrics.z;
-    //    c *= texture(textureSamplers[mat.textureId], texCoord).xyz;
-    //}
-    //c += mat.emission;
-
-    //float tmin   = 0.001;
-    //float tmax   = 100.0;
-    //vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
-    //isShadowed   = true;
-    //traceNV(topLevelAS,
-    //        gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
-    //            | gl_RayFlagsSkipClosestHitShaderNV,
-    //        0xFF, 1 /* sbtRecordOffset */, 0 /* sbtRecordStride */, 1 /* missIndex */, origin, tmin,
-    //        lightVector, tmax, 2 /*payload location*/);
-    //if(isShadowed)
-    //    hitValue = c * 0.3;
-    //else
-    //    hitValue = c;
 }

@@ -43,7 +43,7 @@ class vkWindow
     private:
     GLFWwindow* m_GLFWwindow = nullptr;
     vkContext*  m_vkContext  = nullptr;
-    VkExtent2D  m_WindowSize = {1024, 1024};
+    VkExtent2D  m_WindowSize = {1280, 1280};
 
 
     struct
