@@ -57,11 +57,11 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
+    LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
-    LoadModelFromFile("../../scenes/conference/conference.obj");
+    //LoadModelFromFile("../../scenes/conference/conference.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -70,7 +70,8 @@ void vkContext::initVulkan()
 
     //initRaytracing();
     m_vkRTX = std::make_unique<VkRTX>(this, m_window->getWindowSize());
-    m_vkRTX->initRaytracing(m_gpu.physicalDevice, &m_models, &m_rtUniformBuffer, &m_rtUniformMemory);
+    m_vkRTX->initRaytracing(m_gpu.physicalDevice, &m_models, &m_rtUniformBuffer,
+                            &m_rtUniformMemory);
     m_vkRTX->updateRaytracingRenderTarget(m_swapchain.views[0]);
 
 
@@ -103,9 +104,6 @@ void vkContext::mainLoop()
 
         //m_vkRTX->generateNewScrambles();
         //m_vkRTX->updateScrambleValueImage();
-
-
-
 
 
         auto endTime = std::chrono::high_resolution_clock::now();
@@ -228,9 +226,9 @@ void vkContext::renderFrame()
 
 void vkContext::renderImGui(VkCommandBuffer commandBuffer)
 {
-    static const ImVec2 windowSize(200.0f, 600.0f);
+    static const ImVec2 windowSize(400.0f, 400.0f);
     //std::min(600.0f, static_cast<float>(m_swapchain.extent.height)));
-    const ImVec2 windowPos(m_swapchain.extent.width, 0.0f);
+    const ImVec2 windowPos(static_cast<float>(m_swapchain.extent.width), 0.0f);
     //const ImVec2        windowPos(m_swapchain.extent.width - windowSize.x, 0.0f);
 
 
@@ -248,6 +246,17 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     ImGui::SliderFloat("zNear", m_settings.zNear, 0.001f, 100.0f, "%.3f", 4.0f);
     ImGui::SliderFloat("zFar", m_settings.zFar, 0.1f, 100000.0f, "%.3f", 4.0f);
     ImGui::SliderFloat("Fov", m_settings.fov, 1.0f, 179.0f, "%.3f", 1.0f);
+
+    ImGui::SliderInt("Indirect bounces", &m_settings.numIndicesBounces, 0, 10, "%d");
+    ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 64, "%d");
+    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 5.0f, "%.3f");
+    ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 10000.0f, "%.1f", 4.0f);
+    ImGui::SliderFloat("Light intensity", &m_settings.lightOtherE, 0.0f, 10000.0f, "%.1f", 4.0f);
+
+    ImGui::SliderInt("AO rays", &m_settings.numAOrays, 1, 256, "%d");
+    ImGui::SliderFloat("AO ray length", &m_settings.aoRayLength, 0.001f, 5.0f, "%.3f");
+
+
     ImGui::End();
 
 
@@ -986,6 +995,25 @@ void vkContext::updateGraphicsUniforms()
     ubo.viewInverse = glm::inverse(ubo.view);
     ubo.projInverse = glm::inverse(ubo.proj);
 
+    ubo.lightTransform = m_lightTransform;
+    ubo.lightSize      = glm::vec2(m_settings.lightSourceArea);
+    ubo.lightE         = glm::vec3(1.0f) * m_settings.lightE;
+    ubo.lightOtherE    = m_settings.lightOtherE;
+    ubo.lightSourceArea = m_settings.lightSourceArea;
+    if(m_moveLight)
+    {
+        m_lightTransform = ubo.viewInverse;
+        m_moveLight        = false;
+    }
+
+    ubo.numIndirectBounces = m_settings.numIndicesBounces;
+    ubo.samplerPerPixel    = m_settings.samplesPerPixel;
+    ubo.aoRayLength        = m_settings.lightSourceArea;
+
+    ubo.numAOrays   = m_settings.numAOrays;
+    ubo.aoRayLength = m_settings.aoRayLength;
+
+
     void* data;
     // Graphics pipeline
     vmaMapMemory(m_allocator, m_graphics.uniformBufferAllocations[m_currentImage], &data);
@@ -997,6 +1025,8 @@ void vkContext::updateGraphicsUniforms()
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_rtUniformMemory);
 }
+
+void vkContext::updateLightUniform() {}
 
 void vkContext::setupLowDiscrepancySampler()
 {
@@ -1270,9 +1300,9 @@ void vkContext::setupGraphicsDescriptors()
         std::vector<VkDescriptorImageInfo> imageInfos;
         VkDescriptorImageInfo              imageInfo = {};
 
-        for(size_t i = 0; i < m_models.size(); ++i)
+        for(size_t k = 0; k < m_models.size(); ++k)
         {
-            const auto& model = m_models[i];
+            const auto& model = m_models[k];
             for(size_t j = 0; j < model.m_textures.size(); ++j)
             {
                 const auto& texture   = model.m_textures[j];
@@ -1375,7 +1405,7 @@ void vkContext::recordCommandBuffers()
 
                 vkCmdBindIndexBuffer(commandBuffer, m.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                vkCmdDrawIndexed(commandBuffer, m.numIndices, 1, 0, 0, 0);
+                vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m.numIndices), 1, 0, 0, 0);
             }
 
             vkCmdEndRenderPass(commandBuffer);

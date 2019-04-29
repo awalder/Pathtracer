@@ -17,7 +17,7 @@ class vkWindow
 {
     public:
     vkWindow(vkContext* r)
-        : m_vkContext(r)
+        : m_vkctx(r)
     {
     }
 
@@ -42,9 +42,10 @@ class vkWindow
 
     private:
     GLFWwindow* m_GLFWwindow = nullptr;
-    vkContext*  m_vkContext  = nullptr;
+    vkContext*  m_vkctx  = nullptr;
     VkExtent2D  m_WindowSize = {1280, 1280};
 
+    void moveLightToCamera();
 
     struct
     {

@@ -216,7 +216,7 @@ void main()
     //
     //const vec2 samplerUV = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
-    const vec2 samplerUV          = pixelCenter / vec2(gl_LaunchSizeNV.xy);
+    const vec2 samplerUV   = pixelCenter / vec2(gl_LaunchSizeNV.xy);
 
     // layers 0 and 1 are for raygen
     int currentSampleLayer = 2;
@@ -248,10 +248,10 @@ void main()
     vec3  Ro   = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * (0.99999 * gl_HitTNV);
     mat3  ONB  = formBasis(normal);
 
-    uint  sobolIndex = 0;
     uvec2 scramble;
-    scramble[0] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 0))).r);
-    scramble[1] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 1))).r);
+    scramble[0]     = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 0))).r);
+    scramble[1]     = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 1))).r);
+    uint sobolIndex = floatBitsToUint(vec4(texture(scrambleSampler, vec3(samplerUV, 2))).r);
 
     const int aoNumRays    = 16;
     int       aoNoHitCount = 0;

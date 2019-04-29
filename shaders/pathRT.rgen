@@ -4,7 +4,7 @@
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
 
-layout(binding = 2, set = 0) uniform cameraProperties
+layout(binding = 2, set = 0) uniform UBO
 {
     mat4 model;
     mat4 view;
@@ -12,10 +12,44 @@ layout(binding = 2, set = 0) uniform cameraProperties
     mat4 modelIT;
     mat4 viewInverse;
     mat4 projInverse;
-}
-cam;
 
-layout(location = 0) rayPayloadNV vec3 hitValue;
+    mat4 lightTransform;
+
+    vec2 lightSize;
+    vec2 pad0;
+
+    vec3  lightE;
+    float pad1;
+
+    int   numIndirectBounces;
+    int   samplesPerPixel;
+    float lightSourceArea;
+    float lightOtherE;
+
+    int   numAOrays;
+    float aoRayLength;
+}
+ubo;
+
+layout(binding = 3, set = 0) buffer Vertices
+{
+    vec4 v[];
+}
+vertices;
+
+layout(binding = 4, set = 0) buffer Indices
+{
+    uint i[];
+}
+indices;
+
+layout(binding = 5, set = 0) buffer MatColorBufferObject
+{
+    vec4 m[];
+}
+materials;
+
+layout(binding = 6, set = 0) uniform sampler2D[] textureSamplers;
 
 layout(binding = 7, set = 0) uniform sampler2DArray scrambleSampler;
 layout(binding = 8, set = 0) buffer SobolMatrices
@@ -24,34 +58,380 @@ layout(binding = 8, set = 0) buffer SobolMatrices
 }
 sobolMatrices;
 
+
+struct RayPayload
+{
+    vec3 barycentrics;
+    uint primitiveIndex;
+};
+
+layout(location = 0) rayPayloadNV RayPayload payload;
+layout(location = 2) rayPayloadNV bool hitLight;
+
+#define M_PI 3.141592653589
+#define M_2PI 2.0 * M_PI
+#define INV_PI 1.0 / M_PI
+
+
+// ----------------------------------------------------------------------------
+//
+//
+
+struct Vertex
+{
+    vec3 pos;
+    vec3 normal;
+    vec3 color;
+    vec2 texCoord;
+    int  matIndex;
+};
+// Number of vec4 values used to represent a vertex
+uint vertexSize = 3;
+
+Vertex unpackVertex(uint index)
+{
+    Vertex v;
+
+    vec4 d0 = vertices.v[vertexSize * index + 0];
+    vec4 d1 = vertices.v[vertexSize * index + 1];
+    vec4 d2 = vertices.v[vertexSize * index + 2];
+
+    v.pos      = d0.xyz;
+    v.normal   = vec3(d0.w, d1.x, d1.y);
+    v.color    = vec3(d1.z, d1.w, d2.x);
+    v.texCoord = vec2(d2.y, d2.z);
+    v.matIndex = floatBitsToInt(d2.w);
+    return v;
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+struct WaveFrontMaterial
+{
+    vec3  ambient;
+    vec3  diffuse;
+    vec3  specular;
+    vec3  transmittance;
+    vec3  emission;
+    float shininess;
+    float ior;       // index of refraction
+    float dissolve;  // 1 == opaque; 0 == fully transparent
+    int   illum;     // illumination model (see http://www.fileformat.info/format/material/)
+    int   textureId;
+};
+// Number of vec4 values used to represent a material
+const int sizeofMat = 5;
+
+WaveFrontMaterial unpackMaterial(int matIndex)
+{
+    WaveFrontMaterial m;
+    vec4              d0 = materials.m[sizeofMat * matIndex + 0];
+    vec4              d1 = materials.m[sizeofMat * matIndex + 1];
+    vec4              d2 = materials.m[sizeofMat * matIndex + 2];
+    vec4              d3 = materials.m[sizeofMat * matIndex + 3];
+    vec4              d4 = materials.m[sizeofMat * matIndex + 4];
+
+    m.ambient       = vec3(d0.x, d0.y, d0.z);
+    m.diffuse       = vec3(d0.w, d1.x, d1.y);
+    m.specular      = vec3(d1.z, d1.w, d2.x);
+    m.transmittance = vec3(d2.y, d2.z, d2.w);
+    m.emission      = vec3(d3.x, d3.y, d3.z);
+    m.shininess     = d3.w;
+    m.ior           = d4.x;
+    m.dissolve      = d4.y;
+    m.illum         = int(d4.z);
+    m.textureId     = floatBitsToInt(d4.w);
+    return m;
+}
+
+
+// ----------------------------------------------------------------------------
+//
+//
+
+mat3 formBasis(vec3 n)
+{
+    mat3 R;
+    vec3 T, B;
+    if(n.z < -0.9999999f)
+    {
+        T = vec3(0.0, -1.0, 0.0);
+        B = vec3(-1.0, 0.0, 0.0);
+    }
+    else
+    {
+        const float a = 1.0f / (1.0f + n.z);
+        const float b = -n.x * n.y * a;
+        T             = vec3(1.0f - n.x * n.x * a, b, -n.x);
+        B             = vec3(b, 1.0f - n.y * n.y * a, -n.y);
+    }
+
+    R[0] = T;
+    R[1] = B;
+    R[2] = n;
+    return R;
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+float sobol1DSample(uint index, const uint dimension, const uint scramble)
+{
+    // These values are from the sobol implementation from sobol.h/cpp
+    const uint dimensions = 1024;
+    const uint size       = 52;
+
+    uint result = scramble;
+    for(uint i = dimension * size; index != 0; index >>= 1, ++i)
+    {
+        if(uint(index & 1) == 1)
+            result = result ^ sobolMatrices.sm[i];
+    }
+
+    //return result * (1.0 / (uint(1) << 32));
+    return result * 0.00000000023283064;
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+// Cosine weighed hemisphere sample based on shirley-chiu mapping
+vec3 hemisphereSample(uint index, uvec2 scramble)
+{
+    vec2 s;
+    for(int d = 0; d < 2; ++d)
+    {
+        s[d] = sobol1DSample(index, d, scramble[d]);
+    }
+
+    float       phi, r;
+    const float a = 2.0 * s.x - 1.0;
+    const float b = 2.0 * s.y - 1.0;
+
+    if(a * a > b * b)
+    {
+        r   = a;
+        phi = M_PI * 0.25 * (b / a);
+    }
+    else
+    {
+        r   = b;
+        phi = M_PI * 0.5 - M_PI * 0.25 * (a / b);
+    }
+
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - x * x - y * y));
+
+    return vec3(x, y, z);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+vec3 hemisphereSample2(vec2 s)
+{
+    float       phi, r;
+    const float a = 2.0 * s.x - 1.0;
+    const float b = 2.0 * s.y - 1.0;
+
+    if(a * a > b * b)
+    {
+        r   = a;
+        phi = M_PI * 0.25 * (b / a);
+    }
+    else
+    {
+        r   = b;
+        phi = M_PI * 0.5 - M_PI * 0.25 * (a / b);
+    }
+
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - x * x - y * y));
+
+    return vec3(x, y, z);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
+void sampleLight(inout float pdf, inout vec3 p, vec2 prng)
+{
+    pdf      = 1.0 / (4.0 * ubo.lightSize.x * ubo.lightSize.y);
+    vec2 pos = prng * vec2(2.0) - vec2(1.0);
+    p        = vec4(ubo.lightTransform * vec4(pos.xy, 0.0, 1.0)).xyz;
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
 void main()
 {
-    //const vec2        uv = vec2(gl_LaunchIDNV.xy) / vec2(gl_LaunchSizeNV.xy);
-    //const float x = vec4(texture(samplerArray, vec3(uv, 0))).r;
-    //const float y = vec4(texture(samplerArray, vec3(uv, 1))).r;
-
-    //const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(x, y);
     const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeNV.xy);
     vec2       d           = inUV * 2.0 - 1.0;
 
-    mat4 invP = cam.viewInverse * cam.projInverse;
+    mat4 invP = ubo.viewInverse * ubo.projInverse;
 
+    // Point on front plane in homogeneous coordinates
     vec4 p0 = vec4(d.xy, 0.0, 1.0);
+    // Point on back plane in homogeneous coordinates
     vec4 p1 = vec4(d.xy, 1.0, 1.0);
 
+    // apply inverse projection, divide by w to get object-space points
     vec4 Roh = invP * p0;
     vec3 Ro  = vec4(Roh * (1.0 / Roh.w)).xyz;
     vec4 Rdh = invP * p1;
     vec3 Rd  = vec4(Rdh * (1.0 / Rdh.w)).xyz;
 
+    // Subtract front plane from back plane
     Rd = Rd - Ro;
 
-    uint  rayFlags = gl_RayFlagsOpaqueNV;
-    uint  cullMask = 0xff;
-    float tmin     = 0.000001;
-    float tmax     = 1.0;
+    const float tmin     = 0.000001;
+    const float tmax     = 1.0;
+    const uint  rayFlags = gl_RayFlagsOpaqueNV;
+    const uint  cullMask = 0xff;
 
     traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue, 0.0));
+    if(payload.primitiveIndex == ~0u)
+    {
+        imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(0.4, 0.1, 0.4, 0.0));
+        return;
+    }
+
+    const int maxBounces      = ubo.numIndirectBounces;
+    int       scrambleLayerID = 2;
+    uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
+
+
+    vec3 E = vec3(0.0);
+
+    uint sobolDim = 0;
+
+    for(int aaRay = 0; aaRay < ubo.samplesPerPixel; ++aaRay)
+    {
+
+        vec3  throughput = vec3(1.0);
+        float p          = 1.0;
+        int   bounce     = 0;
+        scrambleLayerID  = 2;
+        while(payload.primitiveIndex != ~0u)
+        {
+            vec3 Ei          = vec3(0.0);
+            uint primitiveID = payload.primitiveIndex;
+
+            uvec2 scramble;
+            scramble[0] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
+            scramble[1] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
+
+            ivec3 ind = ivec3(indices.i[3 * primitiveID], indices.i[3 * primitiveID + 1],
+                              indices.i[3 * primitiveID + 2]);
+
+            Vertex v0 = unpackVertex(ind.x);
+            Vertex v1 = unpackVertex(ind.y);
+            Vertex v2 = unpackVertex(ind.z);
+
+            WaveFrontMaterial mat          = unpackMaterial(v1.matIndex);
+            const vec3        barycentrics = payload.barycentrics;
+
+            vec3 normal = normalize(v0.normal * barycentrics.x + v1.normal * barycentrics.y
+                                    + v2.normal * barycentrics.z);
+
+            if(dot(normal, Rd) > 0.0)
+            {
+                normal *= -1.0;
+            }
+
+            vec3 hitPoint =
+                v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+            hitPoint += 0.0001 * normal;
+
+            // costheta between surface normal and previous ray direction
+            float cosTheta_yi = clamp(dot(normalize(-Rd), normal), 0.0, 1.0);
+
+            float pdf;
+            vec3  lightSamplePos;
+            {  // Sample light
+                vec2 s;
+                s[0] = sobol1DSample(sobolIndex, 2, scramble[0]);
+                s[1] = sobol1DSample(sobolIndex, 3, scramble[1]);
+                sampleLight(pdf, lightSamplePos, s);
+            }
+
+            vec3 dirToLight = lightSamplePos - hitPoint;
+
+            hitLight = true;
+
+            // Trace shadowray to lightsource, invokes shadowmiss kernel
+            traceNV(topLevelAS,
+                    gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+                        | gl_RayFlagsSkipClosestHitShaderNV,
+                    0xFF, 1, 0, 1, hitPoint, tmin, dirToLight, tmax, 2);
+
+            if(hitLight == false)
+            {
+                const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
+                const float r           = length(dirToLight);
+
+                // Angle between light surface and dirToLight vector
+                const float cosTheta_light =
+                    clamp(dot(normalize(-dirToLight), lightNormal), 0.0, 1.0);
+
+                // Angle between hit surface and light surface
+                const float cosTheta_surface = clamp(dot(normal, normalize(dirToLight)), 0.0, 1.0);
+
+                Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
+            }
+
+            {  // New ray parameters
+                Ro = hitPoint;
+
+                mat3 ONB = formBasis(normal);
+                vec2 s;
+                s[0] = sobol1DSample(sobolIndex, sobolDim++, scramble[0]);
+                s[1] = sobol1DSample(sobolIndex, sobolDim++, scramble[1]);
+                //vec3 v   = hemisphereSample(sobolIndex++, scramble);
+                vec3 v = hemisphereSample2(s);
+                Rd       = normalize(ONB * v);
+            }
+
+
+            vec3 diffuse = mat.diffuse;
+            diffuse *= INV_PI;
+
+            Ei += mat.emission * 1.0 * ubo.lightOtherE;
+
+            Ei *= throughput * diffuse;
+            E += Ei;
+
+            float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
+            p              = cosTheta * INV_PI;
+
+            if(p == 0.0)
+            {
+                break;
+            }
+
+            throughput *= diffuse * cosTheta / p;
+
+            if(bounce >= maxBounces)
+            {
+                break;
+            }
+            traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
+            bounce++;
+        }
+    }
+
+
+    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(tmp, 0.0));
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E, 0.0));
 }

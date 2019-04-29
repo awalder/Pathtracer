@@ -279,7 +279,7 @@ void VkRTX::createRaytracingDescriptorSet()
 
     // Acceleration structure
     m_rtDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
-                       VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Output image
     m_rtDSG.AddBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_NV);
@@ -288,26 +288,26 @@ void VkRTX::createRaytracingDescriptorSet()
     m_rtDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Vertex buffer
-    m_rtDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Index buffer
-    m_rtDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Material buffer
-    m_rtDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    m_rtDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Textures
     m_rtDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                       VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol scramble images
     m_rtDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                       VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_NV);
+                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol matrices
     m_rtDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                       VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_NV);
+                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     m_rtDescriptorPool      = m_rtDSG.GeneratePool(m_vkctx->getDevice());
     m_rtDescriptorSetLayout = m_rtDSG.GenerateLayout(m_vkctx->getDevice());
@@ -671,7 +671,28 @@ void VkRTX::initSobolResources()
     m_sobol.scrambleView = VkTools::createImageView(m_vkctx->getDevice(), m_sobol.scrambleImage,
                                                     VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT);
 
-    VkTools::createTextureSampler(m_vkctx->getDevice(), &m_sobol.sampler);
+    //VkTools::createTextureSampler(m_vkctx->getDevice(), &m_sobol.sampler);
+    VkSamplerCreateInfo createInfo = {};
+    createInfo.sType               = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    createInfo.pNext               = nullptr;
+    createInfo.flags               = 0;
+    createInfo.magFilter           = VK_FILTER_NEAREST;
+    createInfo.minFilter           = VK_FILTER_NEAREST;
+    createInfo.mipmapMode          = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    createInfo.addressModeU        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeV        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeW        = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.mipLodBias          = 0.0f;
+    createInfo.anisotropyEnable    = VK_TRUE;
+    createInfo.maxAnisotropy       = 16.0f;
+    createInfo.compareEnable       = VK_FALSE;
+    createInfo.compareOp           = VK_COMPARE_OP_ALWAYS;
+    createInfo.minLod;
+    createInfo.maxLod;
+    createInfo.borderColor;
+    createInfo.unnormalizedCoordinates = VK_FALSE;
+
+    VK_CHECK_RESULT(vkCreateSampler(m_vkctx->getDevice(), &createInfo, nullptr, &m_sobol.sampler));
 }
 
 void VkRTX::copySobolMatricesToGPU()

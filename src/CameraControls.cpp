@@ -119,6 +119,8 @@ void CameraControls::update(float deltaTime)
 
 void CameraControls::updateViewMatrix()
 {
+    m_cameraMoved = true;
+
     glm::vec3 forward;
     forward.x = std::cosf(glm::radians(m_rotation.x)) * std::cosf(glm::radians(m_rotation.y));
     forward.y = std::sinf(glm::radians(m_rotation.y));

@@ -27,6 +27,7 @@
 
 #define VULKAN_PATCH_VERSION 101
 
+#include "AreaLight.h"
 #include "Model.h"
 #include "vkDebugLayers.h"
 #include "vkRTX_setup.h"
@@ -58,7 +59,28 @@ class vkContext
 
         glm::mat4 viewInverse;
         glm::mat4 projInverse;
+
+        glm::mat4 lightTransform;
+
+        glm::vec2 lightSize = glm::vec2(0.25f, 0.25f);
+        glm::vec2 pad0;
+
+        glm::vec3 lightE = glm::vec3(1.0f);
+        float     pad1;
+
+        int   numIndirectBounces = 4;
+        int   samplerPerPixel    = 1;
+        float lightSourceArea    = 0.25f;
+        float lightOtherE        = 1.0f;
+
+        int   numAOrays   = 16;
+        float aoRayLength = 1.0f;
     };
+
+    // This is dirty, TODO something better
+    // If true, orient and move light as camera is.
+    bool      m_moveLight      = true;
+    glm::mat4 m_lightTransform = glm::mat4(1.0f);
 
     private:
     void initVulkan();
@@ -84,6 +106,7 @@ class vkContext
     void createFrameBuffers();
     void createUniformBuffers();
     void updateGraphicsUniforms();
+    void updateLightUniform();
     void setupLowDiscrepancySampler();
 
     void createDescriptorPool();
@@ -113,7 +136,6 @@ class vkContext
     void LoadModelFromFile(const std::string& objPath);
 
 
-
     std::unique_ptr<vkWindow>             m_window;
     std::unique_ptr<vkDebugAndExtensions> m_debugAndExtensions;
     std::unique_ptr<VkRTX>                m_vkRTX;
@@ -127,6 +149,8 @@ class vkContext
     float                                 m_runTime           = 0.00000f;
 
     std::vector<VkTools::Model> m_models;
+    AreaLight                   m_light;
+
 
     struct  // Settings
     {
@@ -136,6 +160,17 @@ class vkContext
         float* zNear;
         float* zFar;
         float* fov;
+
+        int numIndicesBounces = 4;
+        int samplesPerPixel   = 1;
+
+        int   numAOrays   = 16;
+        float aoRayLength = 1.0f;
+
+        // Area light
+        float lightSourceArea = 1.0f;
+        float lightE          = 1.0f;
+        float lightOtherE     = 1.0f;
 
 
     } m_settings;
@@ -184,9 +219,12 @@ class vkContext
         std::vector<VkDescriptorSet> descriptorSets;
         VkPipelineLayout             pipelineLayout = VK_NULL_HANDLE;
         VkPipeline                   pipeline       = VK_NULL_HANDLE;
-        std::vector<VkBuffer>        uniformBuffers;
-        std::vector<VmaAllocation>   uniformBufferAllocations;
-        UniformBufferObject          ubo;
+
+        // Second pipeline to draw arealight
+        VkPipeline                 pipelineLight = VK_NULL_HANDLE;
+        std::vector<VkBuffer>      uniformBuffers;
+        std::vector<VmaAllocation> uniformBufferAllocations;
+        UniformBufferObject        ubo;
 
         VkRenderPass renderpassImGui = VK_NULL_HANDLE;
 

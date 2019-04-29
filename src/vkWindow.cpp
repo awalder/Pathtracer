@@ -2,6 +2,8 @@
 #include <imgui_impl_glfw_vulkan.h>
 #include <iostream>
 
+#include "vkContext.h"
+
 void vkWindow::initGLFW()
 {
     glfwSetErrorCallback(onErrorCallback);
@@ -50,6 +52,11 @@ void vkWindow::update(float deltaTime)
 
     m_camera.updateMovements(deltaTime, move);
     m_camera.update(deltaTime);
+}
+
+void vkWindow::moveLightToCamera()
+{
+    m_vkctx->m_moveLight = true;
 }
 
 void vkWindow::handleKeyboardInput(int key, bool isPressed)
@@ -148,6 +155,10 @@ void vkWindow::onKeyCallback(GLFWwindow* window, int key, int scancode, int acti
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        app->moveLightToCamera();
     }
 
     if(action == GLFW_PRESS)

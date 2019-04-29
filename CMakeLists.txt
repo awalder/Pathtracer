@@ -45,8 +45,10 @@ add_executable(${NAME}
                src/Model.h
                src/CameraControls.cpp
                src/CameraControls.h
-#               src/sobolSampler.cpp
-#               src/sobolSampler.h
+               src/AreaLight.cpp
+               src/AreaLight.h
+               src/rtutils.cpp
+               src/rtutils.h
                src/vkRTX_setup.cpp
                src/vkRTX_setup.h
                src/implementations.cpp)
