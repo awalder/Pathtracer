@@ -168,8 +168,8 @@ class vkContext
         float aoRayLength = 1.0f;
 
         // Area light
-        float lightSourceArea = 1.0f;
-        float lightE          = 1.0f;
+        float lightSourceArea = 0.02f;
+        float lightE          = 100.0f;
         float lightOtherE     = 1.0f;
 
 

@@ -1,5 +1,6 @@
 #version 460
 #extension GL_NV_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
@@ -81,8 +82,8 @@ struct Vertex
 {
     vec3 pos;
     vec3 normal;
-    vec3 color;
     vec2 texCoord;
+    vec3 color;
     int  matIndex;
 };
 // Number of vec4 values used to represent a vertex
@@ -98,8 +99,8 @@ Vertex unpackVertex(uint index)
 
     v.pos      = d0.xyz;
     v.normal   = vec3(d0.w, d1.x, d1.y);
-    v.color    = vec3(d1.z, d1.w, d2.x);
-    v.texCoord = vec2(d2.y, d2.z);
+    v.texCoord = vec2(d1.z, d1.w);
+    v.color    = vec3(d2.x, d2.y, d2.z);
     v.matIndex = floatBitsToInt(d2.w);
     return v;
 }
@@ -265,12 +266,13 @@ vec3 hemisphereSample2(vec2 s)
 void sampleLight(inout float pdf, inout vec3 p, vec2 prng)
 {
     pdf      = 1.0 / (4.0 * ubo.lightSize.x * ubo.lightSize.y);
-    vec2 pos = prng * vec2(2.0) - vec2(1.0);
+    vec2 pos = (prng * vec2(2.0) - vec2(1.0)) * ubo.lightSize;
     p        = vec4(ubo.lightTransform * vec4(pos.xy, 0.0, 1.0)).xyz;
 }
 
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+float rand(vec2 co)
+{
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 // ----------------------------------------------------------------------------
@@ -313,31 +315,33 @@ void main()
 
     const int maxBounces      = ubo.numIndirectBounces;
     int       scrambleLayerID = 2;
-    //uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
-    uint sobolIndex = 0;
+    uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
+    //uint sobolIndex = 0;
 
 
-
+    //vec3 E = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
     vec3 E = vec3(0.0);
 
     uint sobolDim = 0;
 
-    for(int aaRay = 0; aaRay < ubo.samplesPerPixel; ++aaRay)
+    //for(int aaRay = 0; aaRay < ubo.samplesPerPixel; ++aaRay)
     {
 
         vec3  throughput = vec3(1.0);
         float p          = 1.0;
         int   bounce     = 0;
         scrambleLayerID  = 2;
-        while(payload.primitiveIndex != ~0u)
+
+        while(payload.primitiveIndex != ~0u && bounce <= maxBounces)
         {
             vec3 Ei          = vec3(0.0);
             uint primitiveID = payload.primitiveIndex;
 
             uvec2 scramble;
-            //texelfetch
-            scramble[0] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
-            scramble[1] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
+            scramble[0] =
+                floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
+            scramble[1] =
+                floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
 
             ivec3 ind = ivec3(indices.i[3 * primitiveID], indices.i[3 * primitiveID + 1],
                               indices.i[3 * primitiveID + 2]);
@@ -407,17 +411,28 @@ void main()
                 s[1] = sobol1DSample(sobolIndex, sobolDim++, scramble[1]);
                 //vec3 v   = hemisphereSample(sobolIndex++, scramble);
                 vec3 v = hemisphereSample2(s);
-                Rd       = normalize(ONB * v);
+                Rd     = normalize(ONB * v) * vec3(100.0);
             }
 
 
             vec3 diffuse = mat.diffuse;
             diffuse *= INV_PI;
 
+            if(mat.textureId >= 0)
+            {
+                vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
+                                + v2.texCoord * barycentrics.z;
+                diffuse *= texture(textureSamplers[mat.textureId], texCoord).xyz;
+                //E = texture(textureSamplers[mat.textureId], texCoord).xyz;
+                //E = vec3(barycentrics);
+                //break;
+            }
+
             Ei += mat.emission * 1.0 * ubo.lightOtherE;
 
             Ei *= throughput * diffuse;
             E += Ei;
+            //E += Ei * (1.0 / 8.0);
 
             float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
             p              = cosTheta * INV_PI;
@@ -429,16 +444,17 @@ void main()
 
             throughput *= diffuse * cosTheta / p;
 
-            if(bounce >= maxBounces)
-            {
-                break;
-            }
+            //if(bounce >= maxBounces)
+            //{
+            //    break;
+            //}
             traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
             bounce++;
         }
         sobolIndex++;
     }
 
+    //E = E / vec3(ubo.samplesPerPixel);
 
     //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(tmp, 0.0));
     imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E, 0.0));

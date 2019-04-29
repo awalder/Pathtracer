@@ -6,10 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 
-//#include <imgui/imgui.h>
 #include <imgui_impl_glfw_vulkan.h>
-//#include <imgui/imgui_impl_glfw.h>
-//#include <imgui/imgui_impl_vulkan.h>
 
 #define IMGUI_MIN_IMAGE_COUNT 2
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -249,8 +246,8 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
 
     ImGui::SliderInt("Indirect bounces", &m_settings.numIndicesBounces, 0, 10, "%d");
     ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 64, "%d");
-    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 5.0f, "%.3f");
-    ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 10000.0f, "%.1f", 4.0f);
+    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 1.0f, "%.3f", 4.0f);
+    ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 100000.0f, "%.1f", 4.0f);
     ImGui::SliderFloat("Light intensity", &m_settings.lightOtherE, 0.0f, 10000.0f, "%.1f", 4.0f);
 
     ImGui::SliderInt("AO rays", &m_settings.numAOrays, 1, 256, "%d");

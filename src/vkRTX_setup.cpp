@@ -298,16 +298,14 @@ void VkRTX::createRaytracingDescriptorSet()
 
     // Textures
     m_rtDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
-                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
+                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol scramble images
     m_rtDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                        VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol matrices
-    m_rtDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    m_rtDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     m_rtDescriptorPool      = m_rtDSG.GeneratePool(m_vkctx->getDevice());
     m_rtDescriptorSetLayout = m_rtDSG.GenerateLayout(m_vkctx->getDevice());
@@ -411,7 +409,7 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
                                 VkImage         image)
 {
     std::array<VkClearValue, 2> clearValuesRT = {};
-    clearValuesRT[0].color                    = {0.8f, 0.1f, 0.2f, 1.0f};
+    clearValuesRT[0].color                    = {0.0f, 0.0f, 0.0f, 0.0f};
     clearValuesRT[1].depthStencil             = {1.0f, 0};
     VkRenderPassBeginInfo renderPassInfoRT    = {};
     renderPassInfoRT.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -454,9 +452,13 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
     VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
     VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
 
-    vkCmdTraceRaysNV(cmdBuf, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset, missStride,
-                     m_sbtBuffer, hitGroupOffset, hitGroupStride, VK_NULL_HANDLE, 0, 0,
-                     m_extent.width, m_extent.height, 1);
+    //for(uint32_t i = 0; i < 8; ++i)
+    {
+        vkCmdTraceRaysNV(cmdBuf, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset, missStride,
+                         m_sbtBuffer, hitGroupOffset, hitGroupStride, VK_NULL_HANDLE, 0, 0,
+                         m_extent.width, m_extent.height, 1);
+    }
+
 
     vkCmdEndRenderPass(cmdBuf);
 
@@ -472,7 +474,7 @@ void VkRTX::generateNewScrambles()
     std::vector<std::vector<uint32_t>> scrambles(m_numLayers,
                                                  std::vector<uint32_t>(numSamplesPerLayer));
 
-    //#pragma omp parallel for
+#pragma omp parallel for
     for(int dim = 0; dim < m_numLayers; ++dim)
     {
         std::random_device                      seed;

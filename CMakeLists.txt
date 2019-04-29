@@ -20,9 +20,9 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/imgui)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/NVIDIA_RTX)
 
 if(MSVC)
-  add_compile_options("/W4" "$<$<CONFIG:RELEASE>:/O2>" "/fp:fast" "/arch:AVX2")
+#  add_compile_options("/W4" "$<$<CONFIG:RELEASE>:/O2>" "/fp:fast" "/arch:AVX2")
 else()
-  add_compile_options("-Wall" "-Wextra" "-Werror" "$<$<CONFIG:RELEASE>:-03>")
+#  add_compile_options("-Wall" "-Wextra" "-Werror" "$<$<CONFIG:RELEASE>:-03>")
 endif()
 
 # These does not seem to make any difference
