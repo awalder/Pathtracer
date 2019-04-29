@@ -986,7 +986,7 @@ void vkContext::updateGraphicsUniforms()
 {
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
-    ubo.model = glm::rotate(glm::radians(m_runTime), glm::vec3(0.0f, 1.0f, 0.0f));
+    //ubo.model = glm::rotate(glm::radians(m_runTime), glm::vec3(0.0f, 1.0f, 0.0f));
     ubo.view  = m_window->m_camera.matrices.view;
     ubo.proj  = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;

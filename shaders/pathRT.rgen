@@ -269,6 +269,10 @@ void sampleLight(inout float pdf, inout vec3 p, vec2 prng)
     p        = vec4(ubo.lightTransform * vec4(pos.xy, 0.0, 1.0)).xyz;
 }
 
+float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
 // ----------------------------------------------------------------------------
 //
 //
@@ -303,13 +307,15 @@ void main()
     traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
     if(payload.primitiveIndex == ~0u)
     {
-        imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(0.4, 0.1, 0.4, 0.0));
+        imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 0.0));
         return;
     }
 
     const int maxBounces      = ubo.numIndirectBounces;
     int       scrambleLayerID = 2;
-    uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
+    //uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
+    uint sobolIndex = 0;
+
 
 
     vec3 E = vec3(0.0);
@@ -329,6 +335,7 @@ void main()
             uint primitiveID = payload.primitiveIndex;
 
             uvec2 scramble;
+            //texelfetch
             scramble[0] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
             scramble[1] = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, scrambleLayerID++))).r);
 
@@ -429,6 +436,7 @@ void main()
             traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
             bounce++;
         }
+        sobolIndex++;
     }
 
 
