@@ -152,6 +152,7 @@ void vkWindow::onKeyCallback(GLFWwindow* window, int key, int scancode, int acti
     ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
 
+    app->m_vkctx->handleKeyPresses(key, action);
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);

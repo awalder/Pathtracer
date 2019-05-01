@@ -1,6 +1,10 @@
 #version 460
 #extension GL_NV_ray_tracing : require
 
+// ----------------------------------------------------------------------------
+//
+//
+
 struct RayPayload
 {
     vec3 barycentrics;
@@ -8,6 +12,7 @@ struct RayPayload
 };
 
 layout(location = 0) rayPayloadInNV RayPayload payload;
+
 
 void main()
 {

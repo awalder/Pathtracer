@@ -2,6 +2,11 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : require
 
+
+// ----------------------------------------------------------------------------
+//  Binding locations
+//
+
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
 
@@ -11,8 +16,9 @@ layout(binding = 2, set = 0) uniform UBO
     mat4 view;
     mat4 proj;
     mat4 modelIT;
-    mat4 viewInverse;
-    mat4 projInverse;
+    mat4 viewProjInverse;
+    //mat4 viewInverse;
+    //mat4 projInverse;
 
     mat4 lightTransform;
 
@@ -59,15 +65,18 @@ layout(binding = 8, set = 0) buffer SobolMatrices
 }
 sobolMatrices;
 
+// ----------------------------------------------------------------------------
+//  Attribute locations
+//
 
 struct RayPayload
 {
     vec3 barycentrics;
-    uint primitiveIndex;
+    uint primitiveID;
 };
 
 layout(location = 0) rayPayloadNV RayPayload payload;
-layout(location = 2) rayPayloadNV bool hitLight;
+layout(location = 2) rayPayloadNV bool isShadowed;
 
 #define M_PI 3.141592653589
 #define M_2PI 2.0 * M_PI
@@ -189,7 +198,7 @@ float sobol1DSample(uint index, const uint dimension, const uint scramble)
     for(uint i = dimension * size; index != 0; index >>= 1, ++i)
     {
         if(uint(index & 1) == 1)
-            result = result ^ sobolMatrices.sm[i];
+            result ^= sobolMatrices.sm[i];
     }
 
     //return result * (1.0 / (uint(1) << 32));
@@ -270,6 +279,10 @@ void sampleLight(inout float pdf, inout vec3 p, vec2 prng)
     p        = vec4(ubo.lightTransform * vec4(pos.xy, 0.0, 1.0)).xyz;
 }
 
+// ----------------------------------------------------------------------------
+//
+//
+
 float rand(vec2 co)
 {
     return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
@@ -279,13 +292,19 @@ float rand(vec2 co)
 //
 //
 
-void main()
+struct Ray
 {
-    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+    vec3 origin;
+    vec3 dir;
+};
+
+Ray getPrimaryRay(vec2 var)
+{
+    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + var;
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeNV.xy);
     vec2       d           = inUV * 2.0 - 1.0;
 
-    mat4 invP = ubo.viewInverse * ubo.projInverse;
+    mat4 invP = ubo.viewProjInverse;
 
     // Point on front plane in homogeneous coordinates
     vec4 p0 = vec4(d.xy, 0.0, 1.0);
@@ -301,47 +320,87 @@ void main()
     // Subtract front plane from back plane
     Rd = Rd - Ro;
 
-    const float tmin     = 0.000001;
-    const float tmax     = 1.0;
-    const uint  rayFlags = gl_RayFlagsOpaqueNV;
-    const uint  cullMask = 0xff;
+    Ray ray;
+    ray.origin = Ro;
+    ray.dir    = Rd;
+    return ray;
+}
 
-    traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
-    if(payload.primitiveIndex == ~0u)
-    {
-        imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 0.0));
-        return;
-    }
+vec2 nextSquareSample(uint index, inout uint dim, uvec2 scramble)
+{
+    vec2 s;
+    s[0] = sobol1DSample(index, dim++, scramble[0]);
+    s[1] = sobol1DSample(index, dim++, scramble[1]);
+    return s;
+}
 
-    const int maxBounces      = ubo.numIndirectBounces;
-    int       scrambleLayerID = 2;
-    uint      sobolIndex      = floatBitsToUint(vec4(texture(scrambleSampler, vec3(inUV, 0))).r);
-    //uint sobolIndex = 0;
+// ----------------------------------------------------------------------------
+//
+//
 
+void main()
+{
 
-    //vec3 E = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
-    vec3 E = vec3(0.0);
+    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+    const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeNV.xy);
 
+    uint sobolIndex =
+        floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, 0), 0)).r);
     uint sobolDim = 0;
 
-    //for(int aaRay = 0; aaRay < ubo.samplesPerPixel; ++aaRay)
+    uvec2 pRayScramble;
+    pRayScramble[0] =
+        floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, 0), 0)).r);
+    pRayScramble[1] =
+        floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, 1), 0)).r);
+
+    const float tmin       = 0.000001;
+    const float tmax       = 1.0;
+    const uint  rayFlags   = gl_RayFlagsOpaqueNV;
+    const uint  cullMask   = 0xff;
+    const int   maxBounces = ubo.numIndirectBounces;
+    vec4        E          = vec4(0.0);
+
+    for(int i = 0; i < ubo.samplesPerPixel; ++i)
     {
-
-        vec3  throughput = vec3(1.0);
-        float p          = 1.0;
-        int   bounce     = 0;
-        scrambleLayerID  = 2;
-
-        while(payload.primitiveIndex != ~0u && bounce <= maxBounces)
+        Ray  ray;
+        vec2 s = nextSquareSample(sobolIndex, sobolDim, pRayScramble);
+        if(ubo.samplesPerPixel == 1)
         {
-            vec3 Ei          = vec3(0.0);
-            uint primitiveID = payload.primitiveIndex;
+            ray = getPrimaryRay(vec2(0.5));
+        }
+        else
+        {
+            ray = getPrimaryRay(s);
+        }
 
+        vec3  Ro              = ray.origin;
+        vec3  Rd              = ray.dir;
+        vec3  throughput      = vec3(1.0);
+        float p               = 1.0;
+        int   bounce          = 0;
+        uint  scrambleLayerID = 2;
+        sobolDim              = 2;
+
+
+        traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
+        if(payload.primitiveID == ~0u)
+        {
+            E += vec4(inUV, 0.5, 1.0);
+            break;
+            //continue;
+        }
+
+        while(bounce <= maxBounces)
+        {
+            vec3  Ei           = vec3(0.0);
+            uint  primitiveID  = payload.primitiveID;
+            vec3  barycentrics = payload.barycentrics;
             uvec2 scramble;
-            scramble[0] =
-                floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
-            scramble[1] =
-                floatBitsToUint(vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
+            scramble[0] = floatBitsToUint(
+                vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
+            scramble[1] = floatBitsToUint(
+                vec4(texelFetch(scrambleSampler, ivec3(gl_LaunchIDNV.xy, scrambleLayerID++), 0)).r);
 
             ivec3 ind = ivec3(indices.i[3 * primitiveID], indices.i[3 * primitiveID + 1],
                               indices.i[3 * primitiveID + 2]);
@@ -350,8 +409,7 @@ void main()
             Vertex v1 = unpackVertex(ind.y);
             Vertex v2 = unpackVertex(ind.z);
 
-            WaveFrontMaterial mat          = unpackMaterial(v1.matIndex);
-            const vec3        barycentrics = payload.barycentrics;
+            WaveFrontMaterial mat = unpackMaterial(v1.matIndex);
 
             vec3 normal = normalize(v0.normal * barycentrics.x + v1.normal * barycentrics.y
                                     + v2.normal * barycentrics.z);
@@ -363,7 +421,7 @@ void main()
 
             vec3 hitPoint =
                 v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-            hitPoint += 0.0001 * normal;
+            hitPoint += 0.001 * normal;
 
             // costheta between surface normal and previous ray direction
             float cosTheta_yi = clamp(dot(normalize(-Rd), normal), 0.0, 1.0);
@@ -371,23 +429,20 @@ void main()
             float pdf;
             vec3  lightSamplePos;
             {  // Sample light
-                vec2 s;
-                s[0] = sobol1DSample(sobolIndex, 2, scramble[0]);
-                s[1] = sobol1DSample(sobolIndex, 3, scramble[1]);
+                vec2 s = nextSquareSample(sobolIndex, sobolDim, scramble);
                 sampleLight(pdf, lightSamplePos, s);
             }
 
             vec3 dirToLight = lightSamplePos - hitPoint;
 
-            hitLight = true;
-
             // Trace shadowray to lightsource, invokes shadowmiss kernel
+            isShadowed = true;
             traceNV(topLevelAS,
                     gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
                         | gl_RayFlagsSkipClosestHitShaderNV,
                     0xFF, 1, 0, 1, hitPoint, tmin, dirToLight, tmax, 2);
 
-            if(hitLight == false)
+            if(!isShadowed)
             {
                 const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
                 const float r           = length(dirToLight);
@@ -406,14 +461,10 @@ void main()
                 Ro = hitPoint;
 
                 mat3 ONB = formBasis(normal);
-                vec2 s;
-                s[0] = sobol1DSample(sobolIndex, sobolDim++, scramble[0]);
-                s[1] = sobol1DSample(sobolIndex, sobolDim++, scramble[1]);
-                //vec3 v   = hemisphereSample(sobolIndex++, scramble);
-                vec3 v = hemisphereSample2(s);
-                Rd     = normalize(ONB * v) * vec3(100.0);
+                vec2 s   = nextSquareSample(sobolIndex, sobolDim, scramble);
+                vec3 v   = hemisphereSample2(s);
+                Rd       = normalize(ONB * v) * vec3(100.0);
             }
-
 
             vec3 diffuse = mat.diffuse;
             diffuse *= INV_PI;
@@ -423,39 +474,39 @@ void main()
                 vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
                                 + v2.texCoord * barycentrics.z;
                 diffuse *= texture(textureSamplers[mat.textureId], texCoord).xyz;
-                //E = texture(textureSamplers[mat.textureId], texCoord).xyz;
-                //E = vec3(barycentrics);
-                //break;
             }
 
             Ei += mat.emission * 1.0 * ubo.lightOtherE;
 
             Ei *= throughput * diffuse;
-            E += Ei;
-            //E += Ei * (1.0 / 8.0);
+            E += vec4(Ei, 0.0);
+            //E += Rd;
 
             float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
             p              = cosTheta * INV_PI;
-
             if(p == 0.0)
             {
                 break;
             }
-
             throughput *= diffuse * cosTheta / p;
 
-            //if(bounce >= maxBounces)
-            //{
-            //    break;
-            //}
             traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
             bounce++;
+            if(payload.primitiveID == ~0u)
+            {
+                break;
+            }
         }
+
+        E.w += 1.0;
         sobolIndex++;
     }
 
-    //E = E / vec3(ubo.samplesPerPixel);
 
-    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(tmp, 0.0));
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E, 0.0));
+    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(0.3, 0.4, 0.5, 0.0));
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E.xyz, 0.0));
+    //vec3 color = vec3(pow(E.r, 1.0 / 2.2), pow(E.g, 1.0 / 2.2), pow(E.b, 1.0 / 2.2));
+    //E /= vec4(E.w);
+
+    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, 0.0));
 }

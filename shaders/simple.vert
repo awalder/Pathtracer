@@ -19,8 +19,9 @@ layout(binding = 0) uniform UniformBufferObject
     mat4 view;
     mat4 proj;
     mat4 modelIT;
-    mat4 viewInverse;
-    mat4 projInverse;
+    mat4 viewProjInverse;
+    //mat4 viewInverse;
+    //mat4 projInverse;
 } ubo;
 
 void main()

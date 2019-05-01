@@ -42,9 +42,14 @@ void VkRTX::initRaytracing(VkPhysicalDevice    gpu,
 
     createGeometryInstances();
     createAccelerationStructures();
+
     createRaytracingDescriptorSet();
-    createRaytracingPipeline();
-    createShaderBindingTable();
+
+    createRaytracingPipelineCookTorrance();
+    createRaytracingPipelineAmbientOcclusion();
+
+    createShaderBindingTableCookTorrance();
+    createShaderBindingTableAmbientOcclusion();
 }
 
 // ----------------------------------------------------------------------------
@@ -278,39 +283,72 @@ void VkRTX::createRaytracingDescriptorSet()
                                 m_vkctx->getCommandPool(), commandBuffer);
 
     // Acceleration structure
-    m_rtDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
-                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Output image
-    m_rtDSG.AddBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.aoDSG.AddBinding(1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Camera information
-    m_rtDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Vertex buffer
-    m_rtDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Index buffer
-    m_rtDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Material buffer
-    m_rtDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Textures
-    m_rtDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
-                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
+                                  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
+                                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol scramble images
-    m_rtDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                       VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol matrices
-    m_rtDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_NV);
+    descriptors.ggxDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+    descriptors.aoDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                 VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
-    m_rtDescriptorPool      = m_rtDSG.GeneratePool(m_vkctx->getDevice());
-    m_rtDescriptorSetLayout = m_rtDSG.GenerateLayout(m_vkctx->getDevice());
-    m_rtDescriptorSet =
-        m_rtDSG.GenerateSet(m_vkctx->getDevice(), m_rtDescriptorPool, m_rtDescriptorSetLayout);
+    descriptors.ggx.descriptorPool      = descriptors.ggxDSG.GeneratePool(m_vkctx->getDevice());
+    descriptors.ggx.descriptorSetLayout = descriptors.ggxDSG.GenerateLayout(m_vkctx->getDevice());
+    descriptors.ggx.descriptorSet =
+        descriptors.ggxDSG.GenerateSet(m_vkctx->getDevice(), descriptors.ggx.descriptorPool,
+                                       descriptors.ggx.descriptorSetLayout);
+
+    descriptors.ao.descriptorPool      = descriptors.aoDSG.GeneratePool(m_vkctx->getDevice());
+    descriptors.ao.descriptorSetLayout = descriptors.aoDSG.GenerateLayout(m_vkctx->getDevice());
+    descriptors.ao.descriptorSet =
+        descriptors.aoDSG.GenerateSet(m_vkctx->getDevice(), descriptors.ao.descriptorPool,
+                                      descriptors.ao.descriptorSetLayout);
 
     VkWriteDescriptorSetAccelerationStructureNV descSetASInfo = {};
     descSetASInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
@@ -318,7 +356,8 @@ void VkRTX::createRaytracingDescriptorSet()
     descSetASInfo.accelerationStructureCount = 1;
     descSetASInfo.pAccelerationStructures    = &m_topLevelAS.structure;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 0, {descSetASInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 0, {descSetASInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 0, {descSetASInfo});
 
     // Camera matrices
     VkDescriptorBufferInfo cameraInfo = {};
@@ -326,7 +365,8 @@ void VkRTX::createRaytracingDescriptorSet()
     cameraInfo.offset                 = 0;
     cameraInfo.range                  = sizeof(vkContext::UniformBufferObject);
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 2, {cameraInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 2, {cameraInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 2, {cameraInfo});
 
     // Vertex buffer
     VkDescriptorBufferInfo vertexInfo = {};
@@ -334,7 +374,8 @@ void VkRTX::createRaytracingDescriptorSet()
     vertexInfo.offset                 = 0;
     vertexInfo.range                  = VK_WHOLE_SIZE;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 3, {vertexInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 3, {vertexInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 3, {vertexInfo});
 
     // Index buffer
     VkDescriptorBufferInfo indexInfo = {};
@@ -342,7 +383,8 @@ void VkRTX::createRaytracingDescriptorSet()
     indexInfo.offset                 = 0;
     indexInfo.range                  = VK_WHOLE_SIZE;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 4, {indexInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 4, {indexInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 4, {indexInfo});
 
     // Material buffer
     VkDescriptorBufferInfo materialInfo = {};
@@ -350,7 +392,8 @@ void VkRTX::createRaytracingDescriptorSet()
     materialInfo.offset                 = 0;
     materialInfo.range                  = VK_WHOLE_SIZE;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 5, {materialInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 5, {materialInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 5, {materialInfo});
 
     // Textures
     std::vector<VkDescriptorImageInfo> imageInfos;
@@ -366,7 +409,8 @@ void VkRTX::createRaytracingDescriptorSet()
 
     if(!model.m_textures.empty())
     {
-        m_rtDSG.Bind(m_rtDescriptorSet, 6, imageInfos);
+        descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 6, imageInfos);
+        descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 6, imageInfos);
     }
 
     VkDescriptorImageInfo sobolSamplerInfo = {};
@@ -374,16 +418,19 @@ void VkRTX::createRaytracingDescriptorSet()
     sobolSamplerInfo.imageView             = m_sobol.scrambleView;
     sobolSamplerInfo.imageLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 7, {sobolSamplerInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 7, {sobolSamplerInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 7, {sobolSamplerInfo});
 
     VkDescriptorBufferInfo sobolMatrixInfo = {};
     sobolMatrixInfo.buffer                 = m_sobol.matrixBuffer;
     sobolMatrixInfo.offset                 = 0;
     sobolMatrixInfo.range                  = VK_WHOLE_SIZE;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 8, {sobolMatrixInfo});
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 8, {sobolMatrixInfo});
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 8, {sobolMatrixInfo});
 
-    m_rtDSG.UpdateSetContents(m_vkctx->getDevice(), m_rtDescriptorSet);
+    descriptors.ggxDSG.UpdateSetContents(m_vkctx->getDevice(), descriptors.ggx.descriptorSet);
+    descriptors.aoDSG.UpdateSetContents(m_vkctx->getDevice(), descriptors.ao.descriptorSet);
 }
 
 // ----------------------------------------------------------------------------
@@ -399,14 +446,18 @@ void VkRTX::updateRaytracingRenderTarget(VkImageView target)
     imageInfo.imageView             = target;
     imageInfo.imageLayout           = VK_IMAGE_LAYOUT_GENERAL;
 
-    m_rtDSG.Bind(m_rtDescriptorSet, 1, {imageInfo});
-    m_rtDSG.UpdateSetContents(m_vkctx->getDevice(), m_rtDescriptorSet);
+    descriptors.ggxDSG.Bind(descriptors.ggx.descriptorSet, 1, {imageInfo});
+    descriptors.ggxDSG.UpdateSetContents(m_vkctx->getDevice(), descriptors.ggx.descriptorSet);
+
+    descriptors.aoDSG.Bind(descriptors.ao.descriptorSet, 1, {imageInfo});
+    descriptors.aoDSG.UpdateSetContents(m_vkctx->getDevice(), descriptors.ao.descriptorSet);
 }
 
 void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
                                 VkRenderPass    renderpass,
                                 VkFramebuffer   frameBuffer,
-                                VkImage         image)
+                                VkImage         image,
+                                uint32_t        mode)
 {
     std::array<VkClearValue, 2> clearValuesRT = {};
     clearValuesRT[0].color                    = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -441,22 +492,54 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
 
     vkCmdBeginRenderPass(cmdBuf, &renderPassInfoRT, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipeline);
+    VkDeviceSize rayGenOffset;
+    VkDeviceSize missOffset;
+    VkDeviceSize missStride;
+    VkDeviceSize hitGroupOffset;
+    VkDeviceSize hitGroupStride;
 
-    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipelineLayout, 0, 1,
-                            &m_rtDescriptorSet, 0, nullptr);
-
-    VkDeviceSize rayGenOffset   = m_sbtGen.GetRayGenOffset();
-    VkDeviceSize missOffset     = m_sbtGen.GetMissOffset();
-    VkDeviceSize missStride     = m_sbtGen.GetMissEntrySize();
-    VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
-    VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
-
-    //for(uint32_t i = 0; i < 8; ++i)
+    switch(mode)
     {
-        vkCmdTraceRaysNV(cmdBuf, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset, missStride,
-                         m_sbtBuffer, hitGroupOffset, hitGroupStride, VK_NULL_HANDLE, 0, 0,
-                         m_extent.width, m_extent.height, 1);
+        // BSDF
+        default:
+        case 0:
+
+            vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelines.GGX);
+
+            vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, layouts.GGX, 0,
+                                    1, &descriptors.ggx.descriptorSet, 0, nullptr);
+
+            rayGenOffset   = m_SBTs.ggx.sbtGen.GetRayGenOffset();
+            missOffset     = m_SBTs.ggx.sbtGen.GetMissOffset();
+            missStride     = m_SBTs.ggx.sbtGen.GetMissEntrySize();
+            hitGroupOffset = m_SBTs.ggx.sbtGen.GetHitGroupOffset();
+            hitGroupStride = m_SBTs.ggx.sbtGen.GetHitGroupEntrySize();
+
+            vkCmdTraceRaysNV(cmdBuf, m_SBTs.ggx.sbtBuffer, rayGenOffset, m_SBTs.ggx.sbtBuffer,
+                             missOffset, missStride, m_SBTs.ggx.sbtBuffer, hitGroupOffset,
+                             hitGroupStride, VK_NULL_HANDLE, 0, 0, m_extent.width, m_extent.height,
+                             1);
+
+            break;
+        // Ambient occlusion
+        case 1:
+            vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelines.AO);
+
+            vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, layouts.AO, 0, 1,
+                                    &descriptors.ao.descriptorSet, 0, nullptr);
+
+            rayGenOffset   = m_SBTs.ao.sbtGen.GetRayGenOffset();
+            missOffset     = m_SBTs.ao.sbtGen.GetMissOffset();
+            missStride     = m_SBTs.ao.sbtGen.GetMissEntrySize();
+            hitGroupOffset = m_SBTs.ao.sbtGen.GetHitGroupOffset();
+            hitGroupStride = m_SBTs.ao.sbtGen.GetHitGroupEntrySize();
+
+            vkCmdTraceRaysNV(cmdBuf, m_SBTs.ao.sbtBuffer, rayGenOffset, m_SBTs.ao.sbtBuffer,
+                             missOffset, missStride, m_SBTs.ao.sbtBuffer, hitGroupOffset,
+                             hitGroupStride, VK_NULL_HANDLE, 0, 0, m_extent.width, m_extent.height,
+                             1);
+
+            break;
     }
 
 
@@ -602,30 +685,56 @@ void VkRTX::cleanUp()
         destroyAccelerationStructures(as);
     }
 
-    if(m_rtPipelineLayout != VK_NULL_HANDLE)
+    if(layouts.GGX != VK_NULL_HANDLE)
     {
-        vkDestroyPipelineLayout(m_vkctx->getDevice(), m_rtPipelineLayout, nullptr);
+        vkDestroyPipelineLayout(m_vkctx->getDevice(), layouts.GGX, nullptr);
     }
-    if(m_rtPipeline != VK_NULL_HANDLE)
+    if(layouts.AO != VK_NULL_HANDLE)
     {
-        vkDestroyPipeline(m_vkctx->getDevice(), m_rtPipeline, nullptr);
+        vkDestroyPipelineLayout(m_vkctx->getDevice(), layouts.AO, nullptr);
     }
-    if(m_sbtBuffer != VK_NULL_HANDLE)
+    if(pipelines.GGX != VK_NULL_HANDLE)
     {
-        vkDestroyBuffer(m_vkctx->getDevice(), m_sbtBuffer, nullptr);
+        vkDestroyPipeline(m_vkctx->getDevice(), pipelines.GGX, nullptr);
     }
-    if(m_sbtMemory != VK_NULL_HANDLE)
+    if(pipelines.AO != VK_NULL_HANDLE)
     {
-        vkFreeMemory(m_vkctx->getDevice(), m_sbtMemory, nullptr);
+        vkDestroyPipeline(m_vkctx->getDevice(), pipelines.AO, nullptr);
+    }
+    if(m_SBTs.ggx.sbtBuffer != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(m_vkctx->getDevice(), m_SBTs.ggx.sbtBuffer, nullptr);
+    }
+    if(m_SBTs.ggx.sbtMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(m_vkctx->getDevice(), m_SBTs.ggx.sbtMemory, nullptr);
+    }
+    if(m_SBTs.ao.sbtBuffer != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(m_vkctx->getDevice(), m_SBTs.ao.sbtBuffer, nullptr);
+    }
+    if(m_SBTs.ao.sbtMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(m_vkctx->getDevice(), m_SBTs.ao.sbtMemory, nullptr);
     }
 
-    if(m_rtDescriptorSetLayout != VK_NULL_HANDLE)
+    if(descriptors.ggx.descriptorSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_vkctx->getDevice(), m_rtDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_vkctx->getDevice(), descriptors.ggx.descriptorSetLayout,
+                                     nullptr);
     }
-    if(m_rtDescriptorPool != VK_NULL_HANDLE)
+    if(descriptors.ggx.descriptorPool != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorPool(m_vkctx->getDevice(), m_rtDescriptorPool, nullptr);
+        vkDestroyDescriptorPool(m_vkctx->getDevice(), descriptors.ggx.descriptorPool, nullptr);
+    }
+    if(descriptors.ao.descriptorSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(m_vkctx->getDevice(), descriptors.ao.descriptorSetLayout,
+                                     nullptr);
+    }
+    if(descriptors.ao.descriptorPool != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorPool(m_vkctx->getDevice(), descriptors.ao.descriptorPool, nullptr);
     }
 }
 
@@ -745,63 +854,134 @@ void VkRTX::copySobolMatricesToGPU()
 //
 //
 
-void VkRTX::createRaytracingPipeline()
+void VkRTX::createRaytracingPipelineCookTorrance()
 {
     RayTracingPipelineGenerator pipelineGen;
 
     VkShaderModule rayGenModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rgen.spv", m_vkctx->getDevice());
-    m_rayGenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
+        VkTools::createShaderModule("../../shaders/spirv/pathRT.rgen.spv", m_vkctx->getDevice());
+    m_indices.ggx.rayGenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
 
     VkShaderModule missModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rmiss.spv", m_vkctx->getDevice());
-    m_missIndex = pipelineGen.AddMissShaderStage(missModule);
+        VkTools::createShaderModule("../../shaders/spirv/pathRT.rmiss.spv", m_vkctx->getDevice());
+    m_indices.ggx.missIndex = pipelineGen.AddMissShaderStage(missModule);
 
-    VkShaderModule missShadowModule =
-        VkTools::createShaderModule("../../shaders/pathRTShadow.rmiss.spv", m_vkctx->getDevice());
-    m_shadowMissIndex = pipelineGen.AddMissShaderStage(missShadowModule);
+    VkShaderModule missBounceModule =
+        VkTools::createShaderModule("../../shaders/spirv/pathRTBounce.rmiss.spv", m_vkctx->getDevice());
+    m_indices.ggx.shadowMissIndex = pipelineGen.AddMissShaderStage(missBounceModule);
 
-    // ---
-    m_hitGroupIndex = pipelineGen.StartHitGroup();
+    // --- First hitgroup ---
+    m_indices.ggx.hitGroupIndex = pipelineGen.StartHitGroup();
 
     VkShaderModule closestHitModule =
-        VkTools::createShaderModule("../../shaders/pathRT.rchit.spv", m_vkctx->getDevice());
+        VkTools::createShaderModule("../../shaders/spirv/pathRT.rchit.spv", m_vkctx->getDevice());
     pipelineGen.AddHitShaderStage(closestHitModule, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     pipelineGen.EndHitGroup();
 
 
-    m_shadowHitGroupIndex = pipelineGen.StartHitGroup();
+    // --- Second hitgroup ---
+    m_indices.ggx.shadowHitGroupIndex = pipelineGen.StartHitGroup();
+
+    //VkShaderModule closestBounceHitModule =
+    //    VkTools::createShaderModule("../../shaders/spirv/pathRTBounce.rchit.spv", m_vkctx->getDevice());
+    //pipelineGen.AddHitShaderStage(closestBounceHitModule, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+
     pipelineGen.EndHitGroup();
+
+
 
     pipelineGen.SetMaxRecursionDepth(2);
 
-    pipelineGen.Generate(m_vkctx->getDevice(), m_rtDescriptorSetLayout, &m_rtPipeline,
-                         &m_rtPipelineLayout);
+    pipelineGen.Generate(m_vkctx->getDevice(), descriptors.ggx.descriptorSetLayout, &pipelines.GGX,
+                         &layouts.GGX);
 
     vkDestroyShaderModule(m_vkctx->getDevice(), rayGenModule, nullptr);
     vkDestroyShaderModule(m_vkctx->getDevice(), missModule, nullptr);
-    vkDestroyShaderModule(m_vkctx->getDevice(), missShadowModule, nullptr);
+    vkDestroyShaderModule(m_vkctx->getDevice(), missBounceModule, nullptr);
     vkDestroyShaderModule(m_vkctx->getDevice(), closestHitModule, nullptr);
+    //vkDestroyShaderModule(m_vkctx->getDevice(), closestBounceHitModule, nullptr);
 }
+
 
 // ----------------------------------------------------------------------------
 //
 //
 
-void VkRTX::createShaderBindingTable()
+void VkRTX::createShaderBindingTableCookTorrance()
 {
-    m_sbtGen.AddRayGenerationProgram(m_rayGenIndex, {});
-    m_sbtGen.AddMissProgram(m_missIndex, {});
-    m_sbtGen.AddMissProgram(m_shadowMissIndex, {});
-    m_sbtGen.AddHitGroup(m_hitGroupIndex, {});
-    m_sbtGen.AddHitGroup(m_shadowHitGroupIndex, {});
+    m_SBTs.ggx.sbtGen.AddRayGenerationProgram(m_indices.ggx.rayGenIndex, {});
+    m_SBTs.ggx.sbtGen.AddMissProgram(m_indices.ggx.missIndex, {});
+    m_SBTs.ggx.sbtGen.AddMissProgram(m_indices.ggx.shadowMissIndex, {});
+    m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.hitGroupIndex, {});
+    m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.shadowHitGroupIndex, {});
 
-    VkDeviceSize shaderBindingTableSize = m_sbtGen.ComputeSBTSize(m_raytracingProperties);
+    VkDeviceSize shaderBindingTableSize = m_SBTs.ggx.sbtGen.ComputeSBTSize(m_raytracingProperties);
 
     VkTools::createBufferNoVMA(m_vkctx->getDevice(), m_vkctx->getPhysicalDevice(),
                                shaderBindingTableSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &m_sbtBuffer, &m_sbtMemory);
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &m_SBTs.ggx.sbtBuffer,
+                               &m_SBTs.ggx.sbtMemory);
 
-    m_sbtGen.Generate(m_vkctx->getDevice(), m_rtPipeline, m_sbtBuffer, m_sbtMemory);
+    m_SBTs.ggx.sbtGen.Generate(m_vkctx->getDevice(), pipelines.GGX, m_SBTs.ggx.sbtBuffer,
+                               m_SBTs.ggx.sbtMemory);
+}
+
+void VkRTX::createShaderBindingTableAmbientOcclusion()
+{
+
+    m_SBTs.ao.sbtGen.AddRayGenerationProgram(m_indices.ao.rayGenIndex, {});
+    m_SBTs.ao.sbtGen.AddMissProgram(m_indices.ao.missIndex, {});
+    m_SBTs.ao.sbtGen.AddMissProgram(m_indices.ao.shadowMissIndex, {});
+    m_SBTs.ao.sbtGen.AddHitGroup(m_indices.ao.hitGroupIndex, {});
+    m_SBTs.ao.sbtGen.AddHitGroup(m_indices.ao.shadowHitGroupIndex, {});
+
+    VkDeviceSize shaderBindingTableSize = m_SBTs.ao.sbtGen.ComputeSBTSize(m_raytracingProperties);
+
+    VkTools::createBufferNoVMA(m_vkctx->getDevice(), m_vkctx->getPhysicalDevice(),
+                               shaderBindingTableSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &m_SBTs.ao.sbtBuffer,
+                               &m_SBTs.ao.sbtMemory);
+
+    m_SBTs.ao.sbtGen.Generate(m_vkctx->getDevice(), pipelines.AO, m_SBTs.ao.sbtBuffer,
+                              m_SBTs.ao.sbtMemory);
+}
+void VkRTX::createRaytracingPipelineAmbientOcclusion()
+{
+    RayTracingPipelineGenerator pipelineGen;
+
+    VkShaderModule rayGenModule =
+        VkTools::createShaderModule("../../shaders/spirv/AO.rgen.spv", m_vkctx->getDevice());
+    m_indices.ao.rayGenIndex = pipelineGen.AddRayGenShaderStage(rayGenModule);
+
+    VkShaderModule missModule =
+        VkTools::createShaderModule("../../shaders/spirv/AO.rmiss.spv", m_vkctx->getDevice());
+    m_indices.ao.missIndex = pipelineGen.AddMissShaderStage(missModule);
+
+    VkShaderModule missShadowModule =
+        VkTools::createShaderModule("../../shaders/spirv/AO_shadow.rmiss.spv", m_vkctx->getDevice());
+    m_indices.ao.shadowMissIndex = pipelineGen.AddMissShaderStage(missShadowModule);
+
+    // ---
+    m_indices.ao.hitGroupIndex = pipelineGen.StartHitGroup();
+
+    VkShaderModule closestHitModule =
+        VkTools::createShaderModule("../../shaders/spirv/AO.rchit.spv", m_vkctx->getDevice());
+    pipelineGen.AddHitShaderStage(closestHitModule, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+
+    pipelineGen.EndHitGroup();
+
+
+    m_indices.ao.shadowHitGroupIndex = pipelineGen.StartHitGroup();
+    pipelineGen.EndHitGroup();
+
+    pipelineGen.SetMaxRecursionDepth(2);
+
+    pipelineGen.Generate(m_vkctx->getDevice(), descriptors.ao.descriptorSetLayout, &pipelines.AO,
+                         &layouts.AO);
+
+    vkDestroyShaderModule(m_vkctx->getDevice(), rayGenModule, nullptr);
+    vkDestroyShaderModule(m_vkctx->getDevice(), missModule, nullptr);
+    vkDestroyShaderModule(m_vkctx->getDevice(), missShadowModule, nullptr);
+    vkDestroyShaderModule(m_vkctx->getDevice(), closestHitModule, nullptr);
 }

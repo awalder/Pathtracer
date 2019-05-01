@@ -46,7 +46,7 @@ void vkContext::initVulkan()
     m_settings.zNear = &m_window->m_camera.m_near;
     m_settings.zFar  = &m_window->m_camera.m_far;
 
-    //LoadModelFromFile("../../scenes/cornell/cornell.obj");
+    LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
     //createVertexAndIndexBuffers();
@@ -54,11 +54,12 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Sphere.obj");
-    LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
+    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -156,7 +157,8 @@ void vkContext::renderFrame()
         VkCommandBuffer rtCommandBuffer = beginSingleTimeCommands();
         m_vkRTX->recordCommandBuffer(rtCommandBuffer, m_rtRenderpass,
                                      m_swapchain.frameBuffers[m_currentImage],
-                                     m_swapchain.images[m_currentImage]);
+                                     m_swapchain.images[m_currentImage],
+                                     m_settings.rtRenderingMode);
 
         std::array<VkCommandBuffer, 2> cmdBuffersRT = {rtCommandBuffer, cmdBufImGui};
 
@@ -223,13 +225,16 @@ void vkContext::renderFrame()
 
 void vkContext::renderImGui(VkCommandBuffer commandBuffer)
 {
+    const auto& io = ImGui::GetIO();
+
+    if(m_settings.hideUI)
+        return;
+
     static const ImVec2 windowSize(400.0f, 400.0f);
     //std::min(600.0f, static_cast<float>(m_swapchain.extent.height)));
     const ImVec2 windowPos(static_cast<float>(m_swapchain.extent.width), 0.0f);
     //const ImVec2        windowPos(m_swapchain.extent.width - windowSize.x, 0.0f);
 
-
-    const auto& io = ImGui::GetIO();
 
     ImGui_ImplGlfwVulkan_NewFrame();
 
@@ -240,18 +245,31 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     ImGui::Text("%.3f ms/frame", 1000.0f / io.Framerate);
 
     ImGui::Checkbox("RTX ON", &m_settings.RTX_ON);
+    ImGui::Separator();
+
     ImGui::SliderFloat("zNear", m_settings.zNear, 0.001f, 100.0f, "%.3f", 4.0f);
     ImGui::SliderFloat("zFar", m_settings.zFar, 0.1f, 100000.0f, "%.3f", 4.0f);
     ImGui::SliderFloat("Fov", m_settings.fov, 1.0f, 179.0f, "%.3f", 1.0f);
+    ImGui::Separator();
 
     ImGui::SliderInt("Indirect bounces", &m_settings.numIndicesBounces, 0, 10, "%d");
     ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 64, "%d");
-    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 1.0f, "%.3f", 4.0f);
+    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 1.0f, "%.3f",
+                       4.0f);
     ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 100000.0f, "%.1f", 4.0f);
     ImGui::SliderFloat("Light intensity", &m_settings.lightOtherE, 0.0f, 10000.0f, "%.1f", 4.0f);
+    ImGui::Separator();
 
     ImGui::SliderInt("AO rays", &m_settings.numAOrays, 1, 256, "%d");
     ImGui::SliderFloat("AO ray length", &m_settings.aoRayLength, 0.001f, 5.0f, "%.3f");
+    ImGui::Separator();
+
+    {
+        const char* modes[] = {"GGX BSDF", "Ambient Occlusion"};
+        static int  select  = 0;
+        ImGui::Combo("Sampling mode", &m_settings.rtRenderingMode, modes, IM_ARRAYSIZE(modes));
+        //m_settings.rtRenderingMode = select;
+    }
 
 
     ImGui::End();
@@ -984,23 +1002,25 @@ void vkContext::updateGraphicsUniforms()
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
     //ubo.model = glm::rotate(glm::radians(m_runTime), glm::vec3(0.0f, 1.0f, 0.0f));
-    ubo.view  = m_window->m_camera.matrices.view;
-    ubo.proj  = m_window->m_camera.matrices.projection;
+    ubo.view = m_window->m_camera.matrices.view;
+    ubo.proj = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;
     ubo.modelIT = glm::inverseTranspose(ubo.model);
 
-    ubo.viewInverse = glm::inverse(ubo.view);
-    ubo.projInverse = glm::inverse(ubo.proj);
+    //ubo.viewInverse = glm::inverse(ubo.view);
+    //ubo.projInverse = glm::inverse(ubo.proj);
+    ubo.projViewInverse = glm::inverse(ubo.view) * glm::inverse(ubo.proj);
 
-    ubo.lightTransform = m_lightTransform;
-    ubo.lightSize      = glm::vec2(m_settings.lightSourceArea);
-    ubo.lightE         = glm::vec3(1.0f) * m_settings.lightE;
-    ubo.lightOtherE    = m_settings.lightOtherE;
+    ubo.lightTransform  = m_lightTransform;
+    ubo.lightSize       = glm::vec2(m_settings.lightSourceArea);
+    ubo.lightE          = glm::vec3(1.0f) * m_settings.lightE;
+    ubo.lightOtherE     = m_settings.lightOtherE;
     ubo.lightSourceArea = m_settings.lightSourceArea;
     if(m_moveLight)
     {
-        m_lightTransform = ubo.viewInverse;
-        m_moveLight        = false;
+        m_lightTransform = glm::inverse(ubo.view);
+        //m_lightTransform = ubo.viewInverse;
+        m_moveLight = false;
     }
 
     ubo.numIndirectBounces = m_settings.numIndicesBounces;
@@ -1041,8 +1061,8 @@ void vkContext::setupLowDiscrepancySampler()
 
 void vkContext::createPipeline()
 {
-    auto vertexShader   = VkTools::createShaderModule("../../shaders/vertshader.spv", m_device);
-    auto fragmentShader = VkTools::createShaderModule("../../shaders/fragshader.spv", m_device);
+    auto vertexShader   = VkTools::createShaderModule("../../shaders/spirv/vertshader.spv", m_device);
+    auto fragmentShader = VkTools::createShaderModule("../../shaders/spirv/fragshader.spv", m_device);
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
     vertexShaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1692,4 +1712,31 @@ void vkContext::LoadModelFromFile(const std::string& objPath)
     VkTools::Model model(this, objPath);
 
     m_models.push_back(model);
+}
+
+void vkContext::handleKeyPresses(int key, int action)
+{
+    if(action == GLFW_PRESS)
+    {
+        switch(key)
+        {
+            case GLFW_KEY_ENTER:
+            case GLFW_KEY_KP_ENTER:
+                m_settings.RTX_ON = !m_settings.RTX_ON;
+                break;
+
+            case GLFW_KEY_KP_1:
+                m_settings.rtRenderingMode = 0;
+                break;
+            case GLFW_KEY_KP_2:
+                m_settings.rtRenderingMode = 1;
+                break;
+
+            case GLFW_KEY_H:
+                m_settings.hideUI = !m_settings.hideUI;
+
+            default:
+                break;
+        }
+    }
 }

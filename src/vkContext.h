@@ -57,8 +57,9 @@ class vkContext
         glm::mat4 proj;
         glm::mat4 modelIT;
 
-        glm::mat4 viewInverse;
-        glm::mat4 projInverse;
+        //glm::mat4 viewInverse;
+        //glm::mat4 projInverse;
+        glm::mat4 projViewInverse;
 
         glm::mat4 lightTransform;
 
@@ -81,6 +82,8 @@ class vkContext
     // If true, orient and move light as camera is.
     bool      m_moveLight      = true;
     glm::mat4 m_lightTransform = glm::mat4(1.0f);
+
+    void handleKeyPresses(int key, int action);
 
     private:
     void initVulkan();
@@ -171,6 +174,11 @@ class vkContext
         float lightSourceArea = 0.02f;
         float lightE          = 100.0f;
         float lightOtherE     = 1.0f;
+
+        // 0: Cook-Torrance BSDF, 1: AO
+        int rtRenderingMode = 0;
+
+        bool hideUI = false;
 
 
     } m_settings;

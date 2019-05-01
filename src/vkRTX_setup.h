@@ -31,7 +31,8 @@ class VkRTX
     void recordCommandBuffer(VkCommandBuffer cmdBuf,
                              VkRenderPass    renderpass,
                              VkFramebuffer   frameBuffer,
-                             VkImage         image);
+                             VkImage         image,
+                             uint32_t        mode);
 
     void generateNewScrambles();
     void updateScrambleValueImage();
@@ -41,7 +42,7 @@ class VkRTX
     void                               initSobolResources();
     void                               copySobolMatricesToGPU();
     std::vector<std::vector<uint32_t>> m_scrambles;
-    const int                     m_numLayers           = 32;
+    const int                          m_numLayers           = 32;
     size_t                             m_scrambleSizeInBytes = 0;
     bool                               m_firstRun            = true;
 
@@ -101,8 +102,12 @@ class VkRTX
     void destroyAccelerationStructures(const AccelerationStructure& as);
 
     void createRaytracingDescriptorSet();
-    void createRaytracingPipeline();
-    void createShaderBindingTable();
+    void createRaytracingPipelineCookTorrance();
+
+    void createShaderBindingTableAmbientOcclusion();
+    void createShaderBindingTableCookTorrance();
+
+    void createRaytracingPipelineAmbientOcclusion();
 
     private:
     VkPhysicalDeviceRayTracingPropertiesNV m_raytracingProperties = {};
@@ -112,23 +117,69 @@ class VkRTX
     AccelerationStructure              m_topLevelAS;
     std::vector<AccelerationStructure> m_bottomLevelAS;
 
-    DescriptorSetGenerator m_rtDSG;
-    VkDescriptorPool       m_rtDescriptorPool      = VK_NULL_HANDLE;
-    VkDescriptorSetLayout  m_rtDescriptorSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSet        m_rtDescriptorSet       = VK_NULL_HANDLE;
+    //VkDescriptorPool       m_rtDescriptorPool      = VK_NULL_HANDLE;
+    //VkDescriptorSetLayout  m_rtDescriptorSetLayout = VK_NULL_HANDLE;
+    //VkDescriptorSet        m_rtDescriptorSet       = VK_NULL_HANDLE;
 
+    struct DescriptorSets
+    {
+        VkDescriptorPool      descriptorPool      = VK_NULL_HANDLE;
+        VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+        VkDescriptorSet       descriptorSet       = VK_NULL_HANDLE;
+    };
 
-    VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
-    VkPipeline       m_rtPipeline       = VK_NULL_HANDLE;
+    struct
+    {
+        DescriptorSets ggx;
+        DescriptorSets ao;
 
-    uint32_t m_rayGenIndex;
-    uint32_t m_hitGroupIndex;
-    uint32_t m_missIndex;
+        DescriptorSetGenerator ggxDSG;
+        DescriptorSetGenerator aoDSG;
+    } descriptors;
+    struct
+    {
+        VkPipeline GGX = VK_NULL_HANDLE;
+        VkPipeline AO  = VK_NULL_HANDLE;
+    } pipelines;
 
-    uint32_t m_shadowMissIndex;
-    uint32_t m_shadowHitGroupIndex;
+    struct
+    {
+        VkPipelineLayout GGX = VK_NULL_HANDLE;
+        VkPipelineLayout AO  = VK_NULL_HANDLE;
+    } layouts;
 
-    ShaderBindingTableGenerator m_sbtGen;
-    VkBuffer                    m_sbtBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory              m_sbtMemory = VK_NULL_HANDLE;
+    struct GroupIndices
+    {
+        uint32_t rayGenIndex;
+        uint32_t hitGroupIndex;
+        uint32_t missIndex;
+
+        uint32_t shadowMissIndex;
+        uint32_t shadowHitGroupIndex;
+    };
+    struct
+    {
+        GroupIndices ggx;
+        GroupIndices ao;
+    } m_indices;
+
+    struct ShaderBindingTables
+    {
+        ShaderBindingTableGenerator sbtGen;
+        VkBuffer                    sbtBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory              sbtMemory = VK_NULL_HANDLE;
+    };
+
+    struct
+    {
+        ShaderBindingTables ggx;
+        ShaderBindingTables ao;
+    } m_SBTs;
+
+    //uint32_t m_rayGenIndex;
+    //uint32_t m_hitGroupIndex;
+    //uint32_t m_missIndex;
+
+    //uint32_t m_shadowMissIndex;
+    //uint32_t m_shadowHitGroupIndex;
 };
