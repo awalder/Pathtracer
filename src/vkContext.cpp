@@ -46,7 +46,7 @@ void vkContext::initVulkan()
     m_settings.zNear = &m_window->m_camera.m_near;
     m_settings.zFar  = &m_window->m_camera.m_far;
 
-    LoadModelFromFile("../../scenes/cornell/cornell.obj");
+    //LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
     //createVertexAndIndexBuffers();
@@ -59,7 +59,7 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
-    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
+    LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");

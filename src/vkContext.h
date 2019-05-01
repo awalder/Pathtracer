@@ -164,7 +164,7 @@ class vkContext
         float* zFar;
         float* fov;
 
-        int numIndicesBounces = 4;
+        int numIndicesBounces = 0;
         int samplesPerPixel   = 1;
 
         int   numAOrays   = 16;

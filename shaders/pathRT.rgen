@@ -386,6 +386,8 @@ void main()
         traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
         if(payload.primitiveID == ~0u)
         {
+            imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 0.0));
+            return;
             E += vec4(inUV, 0.5, 1.0);
             break;
             //continue;
@@ -502,11 +504,7 @@ void main()
         sobolIndex++;
     }
 
-
-    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(0.3, 0.4, 0.5, 0.0));
+    vec3 color = vec3(pow(E.x, 1.0 / 2.2), pow(E.y, 1.0 / 2.2), pow(E.z, 1.0 / 2.2));
+    E /= vec4(E.w);
     imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E.xyz, 0.0));
-    //vec3 color = vec3(pow(E.r, 1.0 / 2.2), pow(E.g, 1.0 / 2.2), pow(E.b, 1.0 / 2.2));
-    //E /= vec4(E.w);
-
-    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, 0.0));
 }

@@ -16,6 +16,6 @@ hitAttributeNV vec3 attribs;
 
 void main()
 {
-    payload.barycentrics   = attribs;
+    payload.barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
     payload.primitiveIndex = gl_PrimitiveID;
 }
