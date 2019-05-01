@@ -289,6 +289,47 @@ float rand(vec2 co)
 }
 
 // ----------------------------------------------------------------------------
+//  Cook - Torrance BSDF
+//  DFG / (4 * dot(Wi, n) * dot(Wo, n)
+//
+
+
+float chiGGX(float v)
+{
+    return v > 0 ? 1 : 0;
+}
+
+
+float GGX_Distribution(vec3 n, vec3 h, float alpha)
+{
+    float NoH = dot(n, h);
+    float alpha2 = alpha * alpha;
+    float NoH2   = NoH * NoH;
+    float nom = chiGGX(NoH) * alpha2;
+    float den    = NoH2 * alpha2 + (1.0 - NoH2);
+
+    return nom / den;
+}
+
+float GGC_PartialGeometryTerm(vec3 v, vec3 n, vec3 h, float alpha)
+{
+    float VoH = clamp(dot(v, h), 0.0, 1.0);
+    float chi  = chiGGX(VoH / clamp(dot(v, n), 0.0, 1.0));
+    float VoH2 = VoH * VoH;
+    float tan2 = (1.0 - VoH2) / VoH2;
+    return (2.0 * chi) / (1.0 + sqrt(1.0 + alpha * alpha * tan2));
+}
+
+vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
+{
+    return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5);
+}
+
+
+
+
+
+// ----------------------------------------------------------------------------
 //
 //
 
@@ -393,7 +434,8 @@ void main()
             //continue;
         }
 
-        while(bounce <= maxBounces)
+        //while(bounce <= maxBounces)
+        while(true)
         {
             vec3  Ei           = vec3(0.0);
             uint  primitiveID  = payload.primitiveID;
@@ -471,6 +513,9 @@ void main()
             vec3 diffuse = mat.diffuse;
             diffuse *= INV_PI;
 
+            vec3 specular = mat.specular;
+
+
             if(mat.textureId >= 0)
             {
                 vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
@@ -481,19 +526,22 @@ void main()
             Ei += mat.emission * 1.0 * ubo.lightOtherE;
 
             Ei *= throughput * diffuse;
+            //Ei *= throughput * (diffuse + specular);
             E += vec4(Ei, 0.0);
             //E += Rd;
 
             float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
             p              = cosTheta * INV_PI;
-            if(p == 0.0)
+            //throughput *= (diffuse + specular) * cosTheta / p;
+            throughput *= diffuse * cosTheta / p;
+
+            bounce++;
+            if(bounce > maxBounces)
             {
                 break;
             }
-            throughput *= diffuse * cosTheta / p;
 
             traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
-            bounce++;
             if(payload.primitiveID == ~0u)
             {
                 break;

@@ -49,7 +49,6 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/cornell/cornell.obj");
     //LoadModelFromFile("../../scenes/sponza/sponza.obj");
 
-    //createVertexAndIndexBuffers();
 
     //LoadModelFromFile("../../scenes/medieval/Medieval_building.obj");
     //LoadModelFromFile("../../scenes/cornellBox/cornellBox-Original.obj");
@@ -64,9 +63,6 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
 
-    //setupLowDiscrepancySampler();
-
-    //initRaytracing();
     m_vkRTX = std::make_unique<VkRTX>(this, m_window->getWindowSize());
     m_vkRTX->initRaytracing(m_gpu.physicalDevice, &m_models, &m_rtUniformBuffer,
                             &m_rtUniformMemory);
