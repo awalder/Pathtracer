@@ -56,11 +56,7 @@ class vkContext
         glm::mat4 view;
         glm::mat4 proj;
         glm::mat4 modelIT;
-
-        //glm::mat4 viewInverse;
-        //glm::mat4 projInverse;
         glm::mat4 projViewInverse;
-
         glm::mat4 lightTransform;
 
         glm::vec2 lightSize = glm::vec2(0.25f, 0.25f);
@@ -109,8 +105,6 @@ class vkContext
     void createFrameBuffers();
     void createUniformBuffers();
     void updateGraphicsUniforms();
-    void updateLightUniform();
-    void setupLowDiscrepancySampler();
 
     void createDescriptorPool();
     void setupGraphicsDescriptors();

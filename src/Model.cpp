@@ -6,7 +6,6 @@
 
 #include <stb/stb_image.h>
 #include <tinyobjloader/tiny_obj_loader.h>
-//#include <tinyobjloader/tinyobj_loader_opt.h>
 
 #include "vkContext.h"
 
@@ -88,7 +87,6 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
         {
             if(std::strcmp(m_texturePaths[i].c_str(), mat.diffuse_texname.c_str()) == 0)
             {
-                //m_texturePaths.push_back(m_loadedTextures[i]);
                 m.textureID = i;
                 skip        = true;
                 break;
@@ -97,16 +95,9 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
         if(!skip && !mat.diffuse_texname.empty())
         {
             auto ret = replaceSubString(mat.diffuse_texname, "\\\\", "/");
-            //m_texturePaths.push_back(mat.diffuse_texname);
             m_texturePaths.push_back(ret);
             m.textureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
         }
-
-        //if(!mat.diffuse_texname.empty())
-        //{
-        //    m_texturePaths.push_back(mat.diffuse_texname);
-        //    m.textureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
-        //}
 
         m_materials.emplace_back(m);
     }

@@ -28,8 +28,6 @@ class vkDebugAndExtensions
     bool isValidationLayersEnabled() const { return m_EnableValidationLayers; };
 
     private:
-    //PFN_vkCreateDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT;
-    //PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT;
 
     VkDebugUtilsMessengerEXT m_Messenger = VK_NULL_HANDLE;
 

@@ -10,9 +10,6 @@ glm::mat3 CameraControls::getOrientation() const
     r[2] = glm::normalize(m_forward);
     r[0] = glm::normalize(glm::cross(m_up, r[2]));
     r[1] = glm::normalize(glm::cross(r[2], r[0]));
-    //r[2] = -glm::normalize(m_forward);
-    //r[0] = glm::normalize(glm::cross(m_up, r[2]));
-    //r[1] = glm::normalize(glm::cross(r[2], r[0]));
     return r;
 }
 
@@ -75,12 +72,6 @@ void CameraControls::updateMovements(float timeDelta, const glm::vec3& move)
 void CameraControls::updateMouseMovements(glm::vec2 rotate)
 {
     rotate *= m_mouseSensitivity;
-    //auto      r   = getOrientation();
-    //glm::vec3 tmp = r[2] * std::cosf(rotate.x) - r[0] * std::sinf(rotate.x);
-    //m_forward     = -glm::normalize(tmp);
-    //m_forward     = glm::normalize(r[1] * std::sinf(rotate.y) - tmp * std::cosf(rotate.y));
-    ////m_up          = glm::normalize(r[1] * std::cosf(rotate.y) + tmp * std::sinf(rotate.y));
-    //m_up = glm::vec3(0.0f, 1.0f, 0.0f);
 
     m_rotation.x += rotate.x;
     m_rotation.y -= rotate.y;
@@ -131,23 +122,5 @@ void CameraControls::updateViewMatrix()
     m_right = glm::normalize(glm::cross(forward, m_worldUp));
     m_up    = glm::normalize(glm::cross(m_right, forward));
 
-    //glm::mat4 rot       = getCameraToWorld();
-
-    //forward.x = -cos(glm::radians(m_rotation.x)) * sin(glm::radians(m_rotation.y));
-    //forward.y = sin(glm::radians(m_rotation.x));
-    //forward.z = cos(glm::radians(m_rotation.x)) * cos(glm::radians(m_rotation.y));
-
-
-    //glm::mat4 rot(1.0f);
-    //rot = glm::rotate(rot, glm::radians(m_rotation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-    //rot = glm::rotate(rot, glm::radians(m_rotation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-
-    //m_forward = {std::cosf(glm::radians(m_yaw)) * std::cosf(glm::radians(m_pitch)),
-    //             std::sinf(glm::radians(m_pitch)),
-    //             std::sinf(glm::radians(m_yaw)) * std::cosf(glm::radians(m_pitch))};
-
-    //glm::mat4 translate = glm::translate(glm::mat4(1.0f), m_position);
-
     matrices.view = glm::lookAt(m_position, m_position + m_forward, m_worldUp);
-    //matrices.view = rot * translate;
 }

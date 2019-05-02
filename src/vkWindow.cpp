@@ -116,9 +116,6 @@ void vkWindow::handleMouseCursorInput(double xpos, double ypos)
     if(mouseButtons.right)
     {
         m_camera.updateMouseMovements(mouse.delta);
-        //std::cout << "LastPos: " << mouse.lastPositon.x << "\t" << mouse.lastPositon.y << "\t";
-        //std::cout << "CurrentPos: " << mouse.currentPosition.x << "\t" << mouse.currentPosition.y << "\t";
-        //std::cout << mouse.delta.x << "\t" << mouse.delta.y << std::endl;
     }
     mouse.delta = {0.0f, 0.0f};
 }

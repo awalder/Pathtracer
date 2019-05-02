@@ -175,11 +175,4 @@ class VkRTX
         ShaderBindingTables ggx;
         ShaderBindingTables ao;
     } m_SBTs;
-
-    //uint32_t m_rayGenIndex;
-    //uint32_t m_hitGroupIndex;
-    //uint32_t m_missIndex;
-
-    //uint32_t m_shadowMissIndex;
-    //uint32_t m_shadowHitGroupIndex;
 };

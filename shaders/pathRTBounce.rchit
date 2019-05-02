@@ -2,18 +2,8 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-//struct RayPayload
-//{
-//    vec3 barycentrics;
-//    uint primitiveID;
-//};
-
-//layout(location = 2) rayPayloadInNV RayPayload payload;
-//hitAttributeNV vec3 attribs;
 layout(location = 2) rayPayloadInNV bool isShadowed;
 
 void main()
 {
-    //payload.barycentrics = attribs;
-    //payload.primitiveID = gl_PrimitiveID;
 }

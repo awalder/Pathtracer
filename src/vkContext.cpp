@@ -316,11 +316,6 @@ void vkContext::cleanUp()
         vkDestroyRenderPass(m_device, m_rtRenderpass, nullptr);
     }
 
-    //if(m_graphics.pipelineImGui != VK_NULL_HANDLE)
-    //{
-    //    vkDestroyPipeline(m_device, m_graphics.pipelineImGui, nullptr);
-    //}
-
     if(m_graphics.descriptorSetLayout != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorSetLayout(m_device, m_graphics.descriptorSetLayout, nullptr);
@@ -478,13 +473,10 @@ void vkContext::selectPhysicalDevice()
     m_gpu.physicalDevices.resize(physicalDeviceCount);
     vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, m_gpu.physicalDevices.data());
 
-    //std::cout << "Found ( " << physicalDeviceCount << " ) GPUs supporting vulkan" << std::endl;
-
     for(const auto& deviceCtx : m_gpu.physicalDevices)
     {
         VkPhysicalDeviceProperties deviceProperties;
         vkGetPhysicalDeviceProperties(deviceCtx, &deviceProperties);
-        //std::cout << "===== " << deviceProperties.deviceName << " =====" << std::endl;
 
         VkPhysicalDeviceMemoryProperties memoryProperties;
         vkGetPhysicalDeviceMemoryProperties(deviceCtx, &memoryProperties);
@@ -495,29 +487,6 @@ void vkContext::selectPhysicalDevice()
         vkGetPhysicalDeviceQueueFamilyProperties(deviceCtx, &queueFamilyPropertyCount,
                                                  m_gpu.queueFamilyProperties.data());
 
-        //std::cout << std::endl;
-        //std::cout << "Found ( " << queueFamilyPropertyCount << " ) queue families" << std::endl;
-        //for(uint32_t i = 0; i < queueFamilyPropertyCount; ++i)
-        //{
-        //    std::cout << "\tQueue family [" << i << "] supports following operations:" << std::endl;
-        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-        //    {
-        //        std::cout << "\t\tVK_QUEUE_GRAPHICS_BIT" << std::endl;
-        //    }
-        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
-        //    {
-        //        std::cout << "\t\tVK_QUEUE_COMPUTE_BIT" << std::endl;
-        //    }
-        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
-        //    {
-        //        std::cout << "\t\tVK_QUEUE_TRANSFER_BIT" << std::endl;
-        //    }
-        //    if(m_gpu.queueFamilyProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
-        //    {
-        //        std::cout << "\t\tVK_QUEUE_SPARSE_BINDING_BIT" << std::endl;
-        //    }
-        //}
-        //std::cout << std::endl;
     }
 
     // TODO: check if GPU is discrete, just pick first one for now
@@ -777,9 +746,6 @@ void vkContext::createCommandBuffers()
 
     VK_CHECK_RESULT(
         vkAllocateCommandBuffers(m_device, &allocInfo, m_swapchain.commandBuffers.data()));
-
-    //m_rtCommandBuffers.resize(m_swapchain.frameBuffers.size());
-    //VK_CHECK_RESULT(vkAllocateCommandBuffers(m_device, &allocInfo, m_rtCommandBuffers.data()));
 }
 
 // ----------------------------------------------------------------------------
@@ -997,14 +963,11 @@ void vkContext::updateGraphicsUniforms()
 {
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
-    //ubo.model = glm::rotate(glm::radians(m_runTime), glm::vec3(0.0f, 1.0f, 0.0f));
     ubo.view = m_window->m_camera.matrices.view;
     ubo.proj = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;
     ubo.modelIT = glm::inverseTranspose(ubo.model);
 
-    //ubo.viewInverse = glm::inverse(ubo.view);
-    //ubo.projInverse = glm::inverse(ubo.proj);
     ubo.projViewInverse = glm::inverse(ubo.view) * glm::inverse(ubo.proj);
 
     ubo.lightTransform  = m_lightTransform;
@@ -1015,7 +978,6 @@ void vkContext::updateGraphicsUniforms()
     if(m_moveLight)
     {
         m_lightTransform = glm::inverse(ubo.view);
-        //m_lightTransform = ubo.viewInverse;
         m_moveLight = false;
     }
 
@@ -1037,18 +999,6 @@ void vkContext::updateGraphicsUniforms()
     vmaMapMemory(m_allocator, m_rtUniformMemory, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_rtUniformMemory);
-}
-
-void vkContext::updateLightUniform() {}
-
-void vkContext::setupLowDiscrepancySampler()
-{
-    //SobolSampler sampler(this);
-
-    //VkExtent2D     windowSize = m_window->getWindowSize();
-    //const uint32_t numLayers  = 32;
-
-    //sampler.Generate(windowSize.width, windowSize.height, numLayers);
 }
 
 // ----------------------------------------------------------------------------
@@ -1220,7 +1170,6 @@ void vkContext::createDescriptorPool()
 
     poolSizes[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = 1000;
-    //poolSizes[1].descriptorCount = static_cast<uint32_t>(m_swapchain.frameBuffers.size());
 
     poolSizes[2].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = 1000;
@@ -1425,45 +1374,6 @@ void vkContext::recordCommandBuffers()
 
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
         }
-        // NVRTX --------
-        //if(0)
-        {
-            //const VkCommandBuffer& commandBuffer = m_rtCommandBuffers[i];
-            //renderPassInfoRT.framebuffer           = m_swapchain.frameBuffers[i];
-
-
-            //vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-
-            //imageMemoryBarrier.image = m_swapchain.images[i];
-
-            //vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-            //                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
-            //                     &imageMemoryBarrier);
-
-
-            //vkCmdBeginRenderPass(commandBuffer, &renderPassInfoRT, VK_SUBPASS_CONTENTS_INLINE);
-
-            //vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rtPipeline);
-
-            //vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV,
-            //                        m_rtPipelineLayout, 0, 1, &m_rtDescriptorSet, 0, nullptr);
-
-            //VkDeviceSize rayGenOffset   = m_sbtGen.GetRayGenOffset();
-            //VkDeviceSize missOffset     = m_sbtGen.GetMissOffset();
-            //VkDeviceSize missStride     = m_sbtGen.GetMissEntrySize();
-            //VkDeviceSize hitGroupOffset = m_sbtGen.GetHitGroupOffset();
-            //VkDeviceSize hitGroupStride = m_sbtGen.GetHitGroupEntrySize();
-
-            //vkCmdTraceRaysNV(commandBuffer, m_sbtBuffer, rayGenOffset, m_sbtBuffer, missOffset,
-            //                 missStride, m_sbtBuffer, hitGroupOffset, hitGroupStride,
-            //                 VK_NULL_HANDLE, 0, 0, m_swapchain.extent.width,
-            //                 m_swapchain.extent.height, 1);
-
-            //vkCmdEndRenderPass(commandBuffer);
-
-            //VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
-        }
     }
 }
 
@@ -1584,8 +1494,6 @@ void vkContext::initDearImGui()
     ImGui_ImplGlfwVulkan_Init(m_window->getWindow(), false, &initInfo);
 
     ImGui::StyleColorsDark();
-
-    //ImGuiIO& io = ImGui::GetIO();
 
     VkCommandBuffer cmdBuf = beginSingleTimeCommands();
     ImGui_ImplGlfwVulkan_CreateFontsTexture(cmdBuf);
