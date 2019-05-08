@@ -33,6 +33,8 @@ layout(binding = 2, set = 0) uniform UBO
 
     int   numAOrays;
     float aoRayLength;
+
+    float time;
 }
 ubo;
 
@@ -127,10 +129,12 @@ struct WaveFrontMaterial
     float ior;       // index of refraction
     float dissolve;  // 1 == opaque; 0 == fully transparent
     int   illum;     // illumination model (see http://www.fileformat.info/format/material/)
-    int   textureId;
+    int   diffuseTextureId;
+    int   specularTextureId;
+    vec3 pad;
 };
 // Number of vec4 values used to represent a material
-const int sizeofMat = 5;
+const int sizeofMat = 6;
 
 WaveFrontMaterial unpackMaterial(int matIndex)
 {
@@ -140,6 +144,7 @@ WaveFrontMaterial unpackMaterial(int matIndex)
     vec4              d2 = materials.m[sizeofMat * matIndex + 2];
     vec4              d3 = materials.m[sizeofMat * matIndex + 3];
     vec4              d4 = materials.m[sizeofMat * matIndex + 4];
+    vec4              d5 = materials.m[sizeofMat * matIndex + 5];
 
     m.ambient       = vec3(d0.x, d0.y, d0.z);
     m.diffuse       = vec3(d0.w, d1.x, d1.y);
@@ -150,7 +155,8 @@ WaveFrontMaterial unpackMaterial(int matIndex)
     m.ior           = d4.x;
     m.dissolve      = d4.y;
     m.illum         = int(d4.z);
-    m.textureId     = floatBitsToInt(d4.w);
+    m.diffuseTextureId     = floatBitsToInt(d4.w);
+    m.specularTextureId     = floatBitsToInt(d5.x);
     return m;
 }
 
@@ -200,7 +206,7 @@ float sobol1DSample(uint index, const uint dimension, const uint scramble)
     }
 
     //return result * (1.0 / (uint(1) << 32));
-    return result * 0.00000000023283064;
+    return result * 2.3283064365386963e-10;
 }
 
 // ----------------------------------------------------------------------------
@@ -292,35 +298,113 @@ float rand(vec2 co)
 //
 
 
-float chiGGX(float v)
+float GGX_chi(float v)
 {
-    return v > 0 ? 1 : 0;
+    return v > 0 ? 1.0 : 0.0;
 }
 
-
-float GGX_Distribution(vec3 n, vec3 h, float alpha)
+float GGX_Distribution(vec3 m, vec3 n, float alpha)
 {
-    float NoH = dot(n, h);
     float alpha2 = alpha * alpha;
-    float NoH2   = NoH * NoH;
-    float nom = chiGGX(NoH) * alpha2;
-    float den    = NoH2 * alpha2 + (1.0 - NoH2);
+    
+    float MdotN = dot(m, n);
+    float chi = GGX_chi(MdotN);
+    //float chi = GGX_chi(m.z);
 
-    return nom / den;
+    float cosTheta = m.z;
+    float tanTheta = sqrt(1.0 - cosTheta * cosTheta) / cosTheta;
+
+    float denom = M_PI * pow(cosTheta, 4.0) * pow(alpha2 + tanTheta * tanTheta, 2.0);
+    return chi * alpha2 / denom;
 }
 
-float GGC_PartialGeometryTerm(vec3 v, vec3 n, vec3 h, float alpha)
+float GGX_G1(vec3 v, vec3 m, vec3 n, float alpha)
 {
-    float VoH = clamp(dot(v, h), 0.0, 1.0);
-    float chi  = chiGGX(VoH / clamp(dot(v, n), 0.0, 1.0));
-    float VoH2 = VoH * VoH;
-    float tan2 = (1.0 - VoH2) / VoH2;
-    return (2.0 * chi) / (1.0 + sqrt(1.0 + alpha * alpha * tan2));
+    float VdotM = dot(v, m);
+    float VdotN = dot(v, n);
+    //float VdotN = v.z;
+
+    float tanTheta = sqrt(1.0 - VdotM * VdotM) / VdotM;
+
+    float chi = GGX_chi(VdotM / VdotN);
+    float denom = 1.0 + sqrt(1.0 + alpha * alpha * tanTheta * tanTheta);
+
+    return chi * 2.0 / denom;
+
+
+    //float VoH = clamp(dot(v, h), 0.0, 1.0);
+    //float chi  = chi_GGX(VoH / clamp(dot(v, n), 0.0, 1.0));
+    //float VoH2 = VoH * VoH;
+    //float tan2 = (1.0 - VoH2) / VoH2;
+    //return (2.0 * chi) / (1.0 + sqrt(1.0 + alpha * alpha * tan2));
 }
 
-vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
+float GGX_Geometry(vec3 i, vec3 o, vec3 m, vec3 n, float alpha)
 {
-    return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5);
+    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
+}
+
+float GGX_Fresnel(vec3 o, vec3 m, float etaA, float etaB)
+{
+    float OdotM = dot(o, m);
+    float eta = etaA / etaB;
+    float eta2 = eta * eta;
+    
+    float beta = 1.0 / (eta2) + OdotM * OdotM - 1.0;
+
+    // In case of total internal reflection, set F = 1.0
+    if (beta < 0.0) 
+    {
+        return 1.0;
+    }
+
+    float Rs = pow((OdotM - beta) / (OdotM + beta), 2.0);
+    float Rp = pow((eta2 * beta - OdotM) / (eta2 * beta + OdotM), 2.0);
+
+    return 0.5 * (Rs + Rp);
+}
+
+//vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
+//{
+//    return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5);
+//}
+
+vec3 GGX_Sample(vec2 rnd, float alpha)
+{
+    float theta = atan(alpha * sqrt(rnd.x) / sqrt(1.0 - rnd.x));
+    float phi = M_2PI * rnd.y;
+
+    float x = sin(phi) * cos(theta);
+    float y = sin(phi) * sin(theta);
+    float z = cos(phi);
+
+    return vec3(x, y, z);
+}
+
+float GGX_PDF(vec3 m, vec3 n, float alpha)
+{
+    float D = GGX_Distribution(m, n, alpha);
+    float MdotN = dot(m, n);
+    return D * abs(MdotN);
+    //return D * abs(m.z);
+}
+
+float GGX_Eval(vec3 i, vec3 o, vec3 m, vec3 n, float alpha, float etaA, float etaB)
+{
+    i = normalize(i);
+    o = normalize(o);
+    m = normalize(m);
+
+    float D = GGX_Distribution(m, n, alpha);
+    float G = GGX_Geometry(i, o, m, n, alpha);
+    float F = GGX_Fresnel(o, m, etaA, etaB);
+
+    float IdotN = abs(dot(i, n));
+    float OdotN = abs(dot(o, n));
+    //float IdotN = abs(i.z);
+    //float OdotN = abs(o.z);
+
+    return D * G * F / (4.0 * IdotN * OdotN);
 }
 
 
@@ -398,9 +482,10 @@ void main()
     const uint  rayFlags   = gl_RayFlagsOpaqueNV;
     const uint  cullMask   = 0xff;
     const int   maxBounces = ubo.numIndirectBounces;
+    //vec4        E          = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
     vec4        E          = vec4(0.0);
 
-    for(int i = 0; i < ubo.samplesPerPixel; ++i)
+    for(int currentSample = 0; currentSample < ubo.samplesPerPixel; ++currentSample)
     {
         Ray  ray;
         vec2 s = nextSquareSample(sobolIndex, sobolDim, pRayScramble);
@@ -427,12 +512,8 @@ void main()
         {
             imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 0.0));
             return;
-            E += vec4(inUV, 0.5, 1.0);
-            break;
-            //continue;
         }
 
-        //while(bounce <= maxBounces)
         while(true)
         {
             vec3  Ei           = vec3(0.0);
@@ -499,31 +580,63 @@ void main()
                 Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
             }
 
+            
+                float alpha = float(ubo.numAOrays) / 256.0;
+                vec2 rnd = nextSquareSample(sobolIndex, sobolDim, scramble);
+
+                vec3 i = normalize(Rd);
+
+                vec3 iRefl = reflect(i, normal);
+                mat3 B = formBasis(iRefl);
+
+                vec3 o = GGX_Sample(rnd, alpha);
+                o = normalize(B * o) * vec3(100.0);
+
+                vec3 m = normalize(i + o);
+                float ggxPDF = GGX_PDF(m, normal, alpha);
+                ggxPDF *= 1.0 / (4.0 * dot(o, m));
+
+                Rd = o;
+            
+
+            float Ks = GGX_Eval(i, o, m, normal, alpha, 1.0, 1.33);
+
             {  // New ray parameters
                 Ro = hitPoint;
 
-                mat3 ONB = formBasis(normal);
-                vec2 s   = nextSquareSample(sobolIndex, sobolDim, scramble);
-                vec3 v   = hemisphereSample2(s);
-                Rd       = normalize(ONB * v) * vec3(100.0);
+                //mat3 ONB = formBasis(normal);
+                //vec2 s   = nextSquareSample(sobolIndex, sobolDim, scramble);
+                //vec3 v   = hemisphereSample2(s);
+                //Rd       = normalize(ONB * v) * vec3(100.0);
             }
 
-            vec3 diffuse = mat.diffuse;
-            diffuse *= INV_PI;
+            
 
+            vec3 diffuse = mat.diffuse;
             vec3 specular = mat.specular;
 
-
-            if(mat.textureId >= 0)
+            if(mat.diffuseTextureId >= 0)
             {
                 vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
                                 + v2.texCoord * barycentrics.z;
-                diffuse *= texture(textureSamplers[mat.textureId], texCoord).xyz;
+                diffuse *= texture(textureSamplers[mat.diffuseTextureId], texCoord).xyz;
             }
+            if(mat.specularTextureId >= 0)
+            {
+                vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y
+                                + v2.texCoord * barycentrics.z;
+                specular *= texture(textureSamplers[mat.specularTextureId], texCoord).xyz;
+            }
+
+            float Kd = 1.0 - Ks;
+
+            specular *= vec3(Ks);
+            diffuse  *= vec3(Kd) * INV_PI;
+            vec3 color = diffuse + specular;
 
             Ei += mat.emission * 1.0 * ubo.lightOtherE;
 
-            Ei *= throughput * diffuse;
+            Ei *= throughput * color;
             //Ei *= throughput * (diffuse + specular);
             E += vec4(Ei, 0.0);
             //E += Rd;
@@ -531,7 +644,7 @@ void main()
             float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
             p              = cosTheta * INV_PI;
             //throughput *= (diffuse + specular) * cosTheta / p;
-            throughput *= diffuse * cosTheta / p;
+            throughput *= color * cosTheta / max(p, 0.0001);
 
             bounce++;
             if(bounce > maxBounces)
@@ -550,7 +663,7 @@ void main()
         sobolIndex++;
     }
 
-    vec3 color = vec3(pow(E.x, 1.0 / 2.2), pow(E.y, 1.0 / 2.2), pow(E.z, 1.0 / 2.2));
-    E /= vec4(E.w);
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E.xyz, 0.0));
+    vec3 color = pow(E.xyz, vec3(1.0 / 2.2));
+    color /= vec3(E.w);
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, 0.0));
 }

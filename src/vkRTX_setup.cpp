@@ -284,7 +284,8 @@ void VkRTX::createRaytracingDescriptorSet()
 
     // Acceleration structure
     descriptors.ggxDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
@@ -296,45 +297,52 @@ void VkRTX::createRaytracingDescriptorSet()
 
     // Camera information
     descriptors.ggxDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(2, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Vertex buffer
     descriptors.ggxDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Index buffer
     descriptors.ggxDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Material buffer
     descriptors.ggxDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Textures
     descriptors.ggxDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(6, static_cast<uint32_t>((*m_models)[0].m_textures.size()),
                                  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol scramble images
     descriptors.ggxDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
     // Sobol matrices
     descriptors.ggxDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                  VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+                                  VK_SHADER_STAGE_RAYGEN_BIT_NV
+                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
     descriptors.aoDSG.AddBinding(8, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                  VK_SHADER_STAGE_RAYGEN_BIT_NV);
 
@@ -515,10 +523,14 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
             hitGroupOffset = m_SBTs.ggx.sbtGen.GetHitGroupOffset();
             hitGroupStride = m_SBTs.ggx.sbtGen.GetHitGroupEntrySize();
 
-            vkCmdTraceRaysNV(cmdBuf, m_SBTs.ggx.sbtBuffer, rayGenOffset, m_SBTs.ggx.sbtBuffer,
-                             missOffset, missStride, m_SBTs.ggx.sbtBuffer, hitGroupOffset,
-                             hitGroupStride, VK_NULL_HANDLE, 0, 0, m_extent.width, m_extent.height,
-                             1);
+            //for(int i = 0; i < 4; ++i)
+            {
+                vkCmdTraceRaysNV(cmdBuf, m_SBTs.ggx.sbtBuffer, rayGenOffset, m_SBTs.ggx.sbtBuffer,
+                                 missOffset, missStride, m_SBTs.ggx.sbtBuffer, hitGroupOffset,
+                                 hitGroupStride, VK_NULL_HANDLE, 0, 0, m_extent.width,
+                                 m_extent.height, 1);
+            }
+
 
             break;
         // Ambient occlusion
@@ -867,7 +879,8 @@ void VkRTX::createRaytracingPipelineCookTorrance()
     m_indices.ggx.missIndex = pipelineGen.AddMissShaderStage(missModule);
 
     VkShaderModule missBounceModule =
-        VkTools::createShaderModule("../../shaders/spirv/pathRTBounce.rmiss.spv", m_vkctx->getDevice());
+        VkTools::createShaderModule("../../shaders/spirv/pathRTBounce.rmiss.spv",
+                                    m_vkctx->getDevice());
     m_indices.ggx.shadowMissIndex = pipelineGen.AddMissShaderStage(missBounceModule);
 
     // --- First hitgroup ---
@@ -888,7 +901,6 @@ void VkRTX::createRaytracingPipelineCookTorrance()
     //pipelineGen.AddHitShaderStage(closestBounceHitModule, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
     pipelineGen.EndHitGroup();
-
 
 
     pipelineGen.SetMaxRecursionDepth(2);
@@ -959,7 +971,8 @@ void VkRTX::createRaytracingPipelineAmbientOcclusion()
     m_indices.ao.missIndex = pipelineGen.AddMissShaderStage(missModule);
 
     VkShaderModule missShadowModule =
-        VkTools::createShaderModule("../../shaders/spirv/AO_shadow.rmiss.spv", m_vkctx->getDevice());
+        VkTools::createShaderModule("../../shaders/spirv/AO_shadow.rmiss.spv",
+                                    m_vkctx->getDevice());
     m_indices.ao.shadowMissIndex = pipelineGen.AddMissShaderStage(missShadowModule);
 
     // ---

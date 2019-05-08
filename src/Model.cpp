@@ -82,21 +82,42 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
         m.illum    = mat.illum;
 
 
-        bool skip = false;
-        for(size_t i = 0; i < m_texturePaths.size(); ++i)
-        {
-            if(std::strcmp(m_texturePaths[i].c_str(), mat.diffuse_texname.c_str()) == 0)
+        {   // Diffuse
+            bool skip = false;
+            for(size_t i = 0; i < m_texturePaths.size(); ++i)
             {
-                m.textureID = i;
-                skip        = true;
-                break;
+                if(std::strcmp(m_texturePaths[i].c_str(), mat.diffuse_texname.c_str()) == 0)
+                {
+                    m.diffuseTextureID = i;
+                    skip               = true;
+                    break;
+                }
+            }
+            if(!skip && !mat.diffuse_texname.empty())
+            {
+                auto ret = replaceSubString(mat.diffuse_texname, "\\\\", "/");
+                m_texturePaths.push_back(ret);
+                m.diffuseTextureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
             }
         }
-        if(!skip && !mat.diffuse_texname.empty())
-        {
-            auto ret = replaceSubString(mat.diffuse_texname, "\\\\", "/");
-            m_texturePaths.push_back(ret);
-            m.textureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
+
+        {   // Specular
+            bool skip = false;
+            for(size_t i = 0; i < m_texturePaths.size(); ++i)
+            {
+                if(std::strcmp(m_texturePaths[i].c_str(), mat.specular_texname.c_str()) == 0)
+                {
+                    m.specularTextureID = i;
+                    skip               = true;
+                    break;
+                }
+            }
+            if(!skip && !mat.specular_texname.empty())
+            {
+                auto ret = replaceSubString(mat.specular_texname, "\\\\", "/");
+                m_texturePaths.push_back(ret);
+                m.specularTextureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
+            }
         }
 
         m_materials.emplace_back(m);

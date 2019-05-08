@@ -486,7 +486,6 @@ void vkContext::selectPhysicalDevice()
         m_gpu.queueFamilyProperties.resize(queueFamilyPropertyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(deviceCtx, &queueFamilyPropertyCount,
                                                  m_gpu.queueFamilyProperties.data());
-
     }
 
     // TODO: check if GPU is discrete, just pick first one for now
@@ -963,8 +962,8 @@ void vkContext::updateGraphicsUniforms()
 {
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
-    ubo.view = m_window->m_camera.matrices.view;
-    ubo.proj = m_window->m_camera.matrices.projection;
+    ubo.view  = m_window->m_camera.matrices.view;
+    ubo.proj  = m_window->m_camera.matrices.projection;
     ubo.proj[1][1] *= -1.0f;
     ubo.modelIT = glm::inverseTranspose(ubo.model);
 
@@ -978,7 +977,7 @@ void vkContext::updateGraphicsUniforms()
     if(m_moveLight)
     {
         m_lightTransform = glm::inverse(ubo.view);
-        m_moveLight = false;
+        m_moveLight      = false;
     }
 
     ubo.numIndirectBounces = m_settings.numIndicesBounces;
@@ -987,6 +986,8 @@ void vkContext::updateGraphicsUniforms()
 
     ubo.numAOrays   = m_settings.numAOrays;
     ubo.aoRayLength = m_settings.aoRayLength;
+
+    ubo.time               = m_runTime;
 
 
     void* data;
@@ -1007,8 +1008,9 @@ void vkContext::updateGraphicsUniforms()
 
 void vkContext::createPipeline()
 {
-    auto vertexShader   = VkTools::createShaderModule("../../shaders/spirv/vertshader.spv", m_device);
-    auto fragmentShader = VkTools::createShaderModule("../../shaders/spirv/fragshader.spv", m_device);
+    auto vertexShader = VkTools::createShaderModule("../../shaders/spirv/vertshader.spv", m_device);
+    auto fragmentShader =
+        VkTools::createShaderModule("../../shaders/spirv/fragshader.spv", m_device);
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
     vertexShaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

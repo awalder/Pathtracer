@@ -72,6 +72,8 @@ class vkContext
 
         int   numAOrays   = 16;
         float aoRayLength = 1.0f;
+
+        float time = 0.0f;
     };
 
     // This is dirty, TODO something better

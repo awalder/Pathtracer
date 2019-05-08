@@ -21,10 +21,12 @@ struct Material
     float     ior;
     float     dissolve;
     int       illum;
-    int       textureID;
+    int       diffuseTextureID;
+    int       specularTextureID;
+    vec3      pad;
 };
 
-const int sizeofMat = 5;
+const int sizeofMat = 6;
 
 layout(binding = 1) buffer matBufferObject
 {
@@ -41,6 +43,7 @@ Material unpackMaterial()
   vec4 d2 = materials.m[sizeofMat * matIndex + 2];
   vec4 d3 = materials.m[sizeofMat * matIndex + 3];
   vec4 d4 = materials.m[sizeofMat * matIndex + 4];
+  vec4 d5 = materials.m[sizeofMat * matIndex + 5];
 
   m.ambient = vec3(d0.x, d0.y, d0.z);
   m.diffuse = vec3(d0.w, d1.x, d1.y);
@@ -51,7 +54,8 @@ Material unpackMaterial()
   m.ior = d4.x;
   m.dissolve = d4.y;
   m.illum = floatBitsToInt(d4.z);
-  m.textureID = floatBitsToInt(d4.w);
+  m.diffuseTextureID = floatBitsToInt(d4.w);
+  m.specularTextureID = floatBitsToInt(d5.x);
 
   return m;
 }
@@ -67,9 +71,9 @@ void main()
     float cosTheta = max(dot(fragNormal, lightDir), 0.1);
 
     vec3 color = mat.diffuse;
-    if (mat.textureID >= 0)
+    if (mat.specularTextureID >= 0)
     {
-        color *= texture(textureSamplers[mat.textureID], fragTexCoord).xyz;
+        color *= texture(textureSamplers[mat.specularTextureID], fragTexCoord).xyz;
     }
     vec3 result = color * cosTheta * fragColor;
     outColor = vec4(result, 1.0);

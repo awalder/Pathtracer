@@ -21,7 +21,7 @@ cmake -G "Visual Studio 15 Win64"
 
 ## <a name="Currentstate"></a> Current state
 This is still work on progress. Currently can load scene, render it using rasterizing pipeline or raytrace using RT-cores.
-No actual pathtracing performed yet.
+Two modes implemented, pathtracing and ambient occlusion.
 
 ## External libraries used
 - [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)

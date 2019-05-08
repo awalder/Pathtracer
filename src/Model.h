@@ -33,7 +33,9 @@ struct Material
     float     ior           = 1.0f;
     float     dissolve      = 1.0f;
     int       illum         = 0;
-    int       textureID     = -1;
+    int       diffuseTextureID     = -1;
+    int       specularTextureID     = -1;
+    glm::vec3 pad;
 };
 
 enum class TextureType
