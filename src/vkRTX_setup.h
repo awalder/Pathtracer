@@ -98,6 +98,8 @@ class VkRTX
         const std::vector<std::pair<VkAccelerationStructureNV, glm::mat4>>& instances,
         VkBool32                                                            updateOnly);
 
+    void createRaytracingRenderTarget();
+
     void createAccelerationStructures();
     void destroyAccelerationStructures(const AccelerationStructure& as);
 
@@ -176,5 +178,11 @@ class VkRTX
         ShaderBindingTables ao;
     } m_SBTs;
 
-    const int pushValue = 2;
+    struct
+    {
+        VkImage       image   = VK_NULL_HANDLE;
+        VkImageView   view    = VK_NULL_HANDLE;
+        VmaAllocation memory  = VK_NULL_HANDLE;
+        VkSampler     sampler = VK_NULL_HANDLE;
+    } m_rtRenderTarget;
 };

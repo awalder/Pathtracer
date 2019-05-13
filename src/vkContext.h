@@ -136,7 +136,6 @@ class vkContext
     void endRenderPass(VkCommandBuffer commandBuffer);
 
     void LoadModelFromFile(const std::string& objPath);
-    void createRaytracingRenderTarget();
 
 
     std::unique_ptr<vkWindow>             m_window;
@@ -249,15 +248,6 @@ class vkContext
 
     // ---------------------------
     // RTX related items
-
-    struct
-    {
-        VkImage       image   = VK_NULL_HANDLE;
-        VkImageView   view    = VK_NULL_HANDLE;
-        VmaAllocation memory  = VK_NULL_HANDLE;
-        VkSampler     sampler = VK_NULL_HANDLE;
-    } m_rtRenderTarget;
-
 
     VkRenderPass  m_rtRenderpass        = VK_NULL_HANDLE;
     VkRenderPass  m_rtRenderpassNoClear = VK_NULL_HANDLE;

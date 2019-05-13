@@ -40,6 +40,8 @@ void VkRTX::initRaytracing(VkPhysicalDevice    gpu,
     generateNewScrambles();
     updateScrambleValueImage();
 
+    createRaytracingRenderTarget();
+
     createGeometryInstances();
     createAccelerationStructures();
 
@@ -50,6 +52,8 @@ void VkRTX::initRaytracing(VkPhysicalDevice    gpu,
 
     createShaderBindingTableCookTorrance();
     createShaderBindingTableAmbientOcclusion();
+
+    //updateRaytracingRenderTarget(m_rtRenderTarget.view);
 }
 
 // ----------------------------------------------------------------------------
@@ -180,14 +184,49 @@ void VkRTX::createTopLevelAS(
                                    updateOnly ? m_topLevelAS.structure : VK_NULL_HANDLE);
 }
 
+void VkRTX::createRaytracingRenderTarget()
+{
+    VkTools::createImage(m_vkctx->getAllocator(), m_extent, VK_FORMAT_R8G8B8A8_UNORM,
+                         VK_IMAGE_TILING_OPTIMAL,
+                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                         VMA_MEMORY_USAGE_GPU_ONLY, &m_rtRenderTarget.image,
+                         &m_rtRenderTarget.memory);
+
+    VkCommandBuffer commandBuffer =
+        VkTools::beginRecordingCommandBuffer(m_vkctx->getDevice(), m_vkctx->getCommandPool());
+
+    VkImageMemoryBarrier imageBarrier = {};
+    imageBarrier.sType                = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageBarrier.pNext                = nullptr;
+    imageBarrier.srcAccessMask        = 0;
+    imageBarrier.dstAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    imageBarrier.oldLayout            = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageBarrier.newLayout            = VK_IMAGE_LAYOUT_GENERAL;
+    imageBarrier.srcQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
+    imageBarrier.dstQueueFamilyIndex  = VK_QUEUE_FAMILY_IGNORED;
+    imageBarrier.image                = m_rtRenderTarget.image;
+    imageBarrier.subresourceRange     = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                         &imageBarrier);
+
+    VkTools::flushCommandBuffer(m_vkctx->getDevice(), m_vkctx->getQueue(),
+                                m_vkctx->getCommandPool(), commandBuffer);
+
+    m_rtRenderTarget.view = createImageView(m_vkctx->getDevice(), m_rtRenderTarget.image,
+                                            VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    VkTools::createTextureSampler(m_vkctx->getDevice(), &m_rtRenderTarget.sampler);
+}
+
+
 // ----------------------------------------------------------------------------
 //
 //
 
 void VkRTX::createAccelerationStructures()
 {
-
-
     VkCommandBuffer commandBuffer =
         VkTools::beginRecordingCommandBuffer(m_vkctx->getDevice(), m_vkctx->getCommandPool());
     m_bottomLevelAS.resize(m_geometryInstances.size());
@@ -218,6 +257,21 @@ void VkRTX::createAccelerationStructures()
 
 void VkRTX::destroyAccelerationStructures(const AccelerationStructure& as)
 {
+    if(m_rtRenderTarget.image != VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(m_vkctx->getAllocator(), m_rtRenderTarget.image, m_rtRenderTarget.memory);
+    }
+
+    if(m_rtRenderTarget.view != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(m_vkctx->getDevice(), m_rtRenderTarget.view, nullptr);
+    }
+    
+    if(m_rtRenderTarget.sampler != VK_NULL_HANDLE)
+    {
+        vkDestroySampler(m_vkctx->getDevice(), m_rtRenderTarget.sampler, nullptr);
+    }
+
     if(as.scratchBuffer != VK_NULL_HANDLE)
     {
         vkDestroyBuffer(m_vkctx->getDevice(), as.scratchBuffer, nullptr);
@@ -928,7 +982,8 @@ void VkRTX::createShaderBindingTableCookTorrance()
     m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.hitGroupIndex, {});
     m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.shadowHitGroupIndex, {});
 
-    VkDeviceSize shaderBindingTableSize = m_SBTs.ggx.sbtGen.ComputeSBTSize(m_raytracingProperties) + 4;
+    VkDeviceSize shaderBindingTableSize =
+        m_SBTs.ggx.sbtGen.ComputeSBTSize(m_raytracingProperties) + 4;
 
     VkTools::createBufferNoVMA(m_vkctx->getDevice(), m_vkctx->getPhysicalDevice(),
                                shaderBindingTableSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,

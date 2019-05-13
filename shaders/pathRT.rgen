@@ -312,7 +312,7 @@ float GGX_Distribution(vec3 m, vec3 n, float alpha)
     float chi   = GGX_chi(MdotN);
     //float chi = GGX_chi(m.z);
 
-    float cosTheta = m.z;
+    float cosTheta = MdotN;
     float tanTheta = sqrt(1.0 - cosTheta * cosTheta) / cosTheta;
 
     float denom = M_PI * pow(cosTheta, 4.0) * pow(alpha2 + tanTheta * tanTheta, 2.0);
@@ -375,9 +375,9 @@ vec3 GGX_Sample(vec2 rnd, float alpha)
     float theta = atan(alpha * sqrt(rnd.x) / sqrt(1.0 - rnd.x));
     float phi   = M_2PI * rnd.y;
 
-    float x = sin(phi) * cos(theta);
-    float y = sin(phi) * sin(theta);
-    float z = cos(phi);
+    float x = sin(theta) * cos(phi);
+    float y = sin(theta) * sin(phi);
+    float z = cos(theta);
 
     return vec3(x, y, z);
 }
@@ -570,6 +570,8 @@ void main()
                         | gl_RayFlagsSkipClosestHitShaderNV,
                     0xFF, 1, 0, 1, hitPoint, tmin, dirToLight, tmax, 2);
 
+            float alpha = float(ubo.numAOrays) / 256.0;
+
             if(!isShadowed)
             {
                 const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
@@ -581,12 +583,16 @@ void main()
 
                 // Angle between hit surface and light surface
                 const float cosTheta_surface = clamp(dot(normal, normalize(dirToLight)), 0.0, 1.0);
+                
+                // Half vector between raydir and dirtolight
+                vec3 h    = normalize(-Rd + dirToLight);
+                float brdf = GGX_Eval(-Rd, dirToLight, h, normal, alpha, 1.0, 1.5);
 
                 Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
+                Ei *= vec3(brdf) * throughput;
             }
 
 
-            float alpha = float(ubo.numAOrays) / 256.0;
             vec2  rnd   = nextSquareSample(sobolIndex, sobolDim, scramble);
 
             vec3 i = normalize(Rd);
@@ -600,6 +606,12 @@ void main()
             vec3  m      = normalize(i + o);
             float ggxPDF = GGX_PDF(m, normal, alpha);
             ggxPDF *= 1.0 / (4.0 * dot(o, m));
+
+            if(ggxPDF == 0.0)
+            {
+                Ei = vec3(1e6, 0, 1e6);
+                break;
+            }
 
             Rd = o;
 
@@ -669,6 +681,6 @@ void main()
 
     vec3 color = pow(E.xyz, vec3(1.0 / 2.2));
     color /= vec3(E.w);
-    //color /= ubo.iteration;
+    //color /= vec3(ubo.iteration + 1);
     imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, 0.0));
 }
