@@ -40,6 +40,7 @@ void vkContext::initVulkan()
     createFrameBuffers();
     createCommandBuffers();
     createUniformBuffers();
+    createRaytracingRenderTarget();
 
     // Set pointers to values that are controlled by UI
     m_settings.fov   = &m_window->m_camera.m_fov;
@@ -151,7 +152,9 @@ void vkContext::renderFrame()
     if(m_settings.RTX_ON)
     {
         VkCommandBuffer rtCommandBuffer = beginSingleTimeCommands();
-        m_vkRTX->recordCommandBuffer(rtCommandBuffer, m_rtRenderpass,
+        VkRenderPass renderpass = m_cameraMoved ? m_rtRenderpass : m_rtRenderpassNoClear;
+
+        m_vkRTX->recordCommandBuffer(rtCommandBuffer, renderpass,
                                      m_swapchain.frameBuffers[m_currentImage],
                                      m_swapchain.images[m_currentImage],
                                      m_settings.rtRenderingMode);
@@ -314,6 +317,26 @@ void vkContext::cleanUp()
     if(m_rtRenderpass != VK_NULL_HANDLE)
     {
         vkDestroyRenderPass(m_device, m_rtRenderpass, nullptr);
+    }
+
+    if(m_rtRenderpassNoClear != VK_NULL_HANDLE)
+    {
+        vkDestroyRenderPass(m_device, m_rtRenderpassNoClear, nullptr);
+    }
+
+    if(m_rtRenderTarget.image != VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(m_allocator, m_rtRenderTarget.image, m_rtRenderTarget.memory);
+    }
+
+    if(m_rtRenderTarget.view != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(m_device, m_rtRenderTarget.view, nullptr);
+    }
+    
+    if(m_rtRenderTarget.sampler != VK_NULL_HANDLE)
+    {
+        vkDestroySampler(m_device, m_rtRenderTarget.sampler, nullptr);
     }
 
     if(m_graphics.descriptorSetLayout != VK_NULL_HANDLE)
@@ -884,8 +907,15 @@ void vkContext::createRenderPass()
 
     VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_graphics.renderpass));
 
-    //RTX renderpass
-    VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpass));
+    //RTX renderpasses
+    {
+        VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpass));
+
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+        VK_CHECK_RESULT(
+            vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpassNoClear));
+    }
 
     {  // Imgui renderpass
 
@@ -960,6 +990,10 @@ void vkContext::createUniformBuffers()
 
 void vkContext::updateGraphicsUniforms()
 {
+    std::random_device                      seed;
+    std::mt19937                            gen(seed());
+    std::uniform_int_distribution<uint32_t> uintDist;
+
     UniformBufferObject ubo;
     ubo.model = glm::mat4(1.0f);
     ubo.view  = m_window->m_camera.matrices.view;
@@ -986,9 +1020,17 @@ void vkContext::updateGraphicsUniforms()
 
     ubo.numAOrays   = m_settings.numAOrays;
     ubo.aoRayLength = m_settings.aoRayLength;
+    ubo.iteration   = m_settings.iteration++;
+    //ubo.iteration   = m_cameraMoved ? 0 : uintDist(gen);
 
-    ubo.time               = m_runTime;
+    ubo.time = m_runTime;
 
+
+    if(m_cameraMoved)
+    {
+        m_cameraMoved = false;
+        m_settings.iteration = 0;
+    }
 
     void* data;
     // Graphics pipeline
@@ -1618,6 +1660,39 @@ void vkContext::LoadModelFromFile(const std::string& objPath)
     VkTools::Model model(this, objPath);
 
     m_models.push_back(model);
+}
+
+void vkContext::createRaytracingRenderTarget()
+{
+    VkTools::createImage(m_allocator, m_swapchain.extent, VK_FORMAT_R8G8B8A8_UNORM,
+                         VK_IMAGE_TILING_OPTIMAL,
+                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                         VMA_MEMORY_USAGE_GPU_ONLY, &m_rtRenderTarget.image, &m_rtRenderTarget.memory);
+
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    VkImageMemoryBarrier imageBarrier = {};
+    imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageBarrier.pNext = nullptr;
+    imageBarrier.srcAccessMask = 0;
+    imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageBarrier.image = m_rtRenderTarget.image;
+    imageBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                         &imageBarrier);
+
+    endSingleTimeCommands(commandBuffer);
+
+    createImageView(m_device, m_rtRenderTarget.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    VkTools::createTextureSampler(m_device, &m_rtRenderTarget.sampler);
+
 }
 
 void vkContext::handleKeyPresses(int key, int action)

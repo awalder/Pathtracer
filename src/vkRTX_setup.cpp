@@ -508,7 +508,7 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
 
     switch(mode)
     {
-        // BSDF
+        // BRDF
         default:
         case 0:
 
@@ -928,7 +928,7 @@ void VkRTX::createShaderBindingTableCookTorrance()
     m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.hitGroupIndex, {});
     m_SBTs.ggx.sbtGen.AddHitGroup(m_indices.ggx.shadowHitGroupIndex, {});
 
-    VkDeviceSize shaderBindingTableSize = m_SBTs.ggx.sbtGen.ComputeSBTSize(m_raytracingProperties);
+    VkDeviceSize shaderBindingTableSize = m_SBTs.ggx.sbtGen.ComputeSBTSize(m_raytracingProperties) + 4;
 
     VkTools::createBufferNoVMA(m_vkctx->getDevice(), m_vkctx->getPhysicalDevice(),
                                shaderBindingTableSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,

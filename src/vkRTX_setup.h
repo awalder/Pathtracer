@@ -175,4 +175,6 @@ class VkRTX
         ShaderBindingTables ggx;
         ShaderBindingTables ao;
     } m_SBTs;
+
+    const int pushValue = 2;
 };

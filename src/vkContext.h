@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -70,8 +71,9 @@ class vkContext
         float lightSourceArea    = 0.25f;
         float lightOtherE        = 1.0f;
 
-        int   numAOrays   = 16;
-        float aoRayLength = 1.0f;
+        int      numAOrays   = 16;
+        float    aoRayLength = 1.0f;
+        uint32_t iteration   = 0;
 
         float time = 0.0f;
     };
@@ -80,6 +82,7 @@ class vkContext
     // If true, orient and move light as camera is.
     bool      m_moveLight      = true;
     glm::mat4 m_lightTransform = glm::mat4(1.0f);
+    bool      m_cameraMoved    = true;
 
     void handleKeyPresses(int key, int action);
 
@@ -133,6 +136,7 @@ class vkContext
     void endRenderPass(VkCommandBuffer commandBuffer);
 
     void LoadModelFromFile(const std::string& objPath);
+    void createRaytracingRenderTarget();
 
 
     std::unique_ptr<vkWindow>             m_window;
@@ -175,6 +179,8 @@ class vkContext
         int rtRenderingMode = 0;
 
         bool hideUI = false;
+
+        uint32_t iteration = 0;
 
 
     } m_settings;
@@ -244,7 +250,17 @@ class vkContext
     // ---------------------------
     // RTX related items
 
-    VkRenderPass  m_rtRenderpass    = VK_NULL_HANDLE;
-    VkBuffer      m_rtUniformBuffer = VK_NULL_HANDLE;
-    VmaAllocation m_rtUniformMemory = VK_NULL_HANDLE;
+    struct
+    {
+        VkImage       image   = VK_NULL_HANDLE;
+        VkImageView   view    = VK_NULL_HANDLE;
+        VmaAllocation memory  = VK_NULL_HANDLE;
+        VkSampler     sampler = VK_NULL_HANDLE;
+    } m_rtRenderTarget;
+
+
+    VkRenderPass  m_rtRenderpass        = VK_NULL_HANDLE;
+    VkRenderPass  m_rtRenderpassNoClear = VK_NULL_HANDLE;
+    VkBuffer      m_rtUniformBuffer     = VK_NULL_HANDLE;
+    VmaAllocation m_rtUniformMemory     = VK_NULL_HANDLE;
 };

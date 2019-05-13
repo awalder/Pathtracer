@@ -15,7 +15,7 @@ void vkWindow::initGLFW()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     m_GLFWwindow =
         glfwCreateWindow(static_cast<int>(m_WindowSize.width),
@@ -46,9 +46,9 @@ void vkWindow::update(float deltaTime)
     if(keys.back)
         move.z -= 1.0f;
     if(keys.up)
-        move.y += 1.0f;
-    if(keys.down)
         move.y -= 1.0f;
+    if(keys.down)
+        move.y += 1.0f;
 
     m_camera.updateMovements(deltaTime, move);
     m_camera.update(deltaTime);
@@ -89,6 +89,8 @@ void vkWindow::handleKeyboardInput(int key, bool isPressed)
     {
         keys.l_shift = isPressed;
     }
+    m_vkctx->m_cameraMoved = true;
+
 }
 
 void vkWindow::handleMouseButtonInput(int button, bool isPressed)
@@ -113,11 +115,13 @@ void vkWindow::handleMouseCursorInput(double xpos, double ypos)
     mouse.currentPosition = {static_cast<float>(xpos), static_cast<float>(ypos)};
     mouse.delta           = mouse.currentPosition - mouse.lastPositon;
 
-    if(mouseButtons.right)
+    if(mouseButtons.left)
     {
         m_camera.updateMouseMovements(mouse.delta);
     }
     mouse.delta = {0.0f, 0.0f};
+
+    m_vkctx->m_cameraMoved = true;
 }
 
 void vkWindow::handleMouseScrollInput(double xpos, double ypos)

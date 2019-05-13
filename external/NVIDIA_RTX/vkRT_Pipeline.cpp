@@ -261,6 +261,12 @@ void RayTracingPipelineGenerator::Generate(VkDevice              device,
     pipelineLayoutCreateInfo.flags                  = 0;
     pipelineLayoutCreateInfo.setLayoutCount         = 1;
     pipelineLayoutCreateInfo.pSetLayouts            = &descriptorSetLayout;
+
+    //VkPushConstantRange pushconstants = {};
+    //pushconstants.stageFlags = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV;
+    //pushconstants.offset = 0;
+    //pushconstants.size = sizeof(int);
+
     pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
     pipelineLayoutCreateInfo.pPushConstantRanges    = nullptr;
 
