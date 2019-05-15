@@ -66,7 +66,7 @@ void vkContext::initVulkan()
     m_vkRTX = std::make_unique<VkRTX>(this, m_window->getWindowSize());
     m_vkRTX->initRaytracing(m_gpu.physicalDevice, &m_models, &m_rtUniformBuffer,
                             &m_rtUniformMemory);
-    m_vkRTX->updateRaytracingRenderTarget(m_swapchain.views[0]);
+    //m_vkRTX->updateRaytracingRenderTarget(m_swapchain.views[0]);
 
 
     createDescriptorPool();
@@ -128,9 +128,10 @@ void vkContext::renderFrame()
         recreateSwapchain();
     }
 
-    //if(m_settings.RTX_ON)
+    if(m_settings.RTX_ON)
     {
-        m_vkRTX->updateRaytracingRenderTarget(m_swapchain.views[imageIndex]);
+        //m_vkRTX->updateRaytracingRenderTarget(m_swapchain.views[imageIndex]);
+        m_vkRTX->updateWriteDescriptors(m_swapchain.views[imageIndex]);
     }
     updateGraphicsUniforms();
 
@@ -268,6 +269,10 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
         ImGui::Combo("Sampling mode", &m_settings.rtRenderingMode, modes, IM_ARRAYSIZE(modes));
         //m_settings.rtRenderingMode = select;
     }
+    ImGui::Separator();
+    ImGui::Text("%d samples accumulated", m_settings.iteration);
+
+
 
 
     ImGui::End();
@@ -896,6 +901,7 @@ void vkContext::createRenderPass()
         VK_CHECK_RESULT(vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpass));
 
         attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        //attachments[0].initialLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         attachments[0].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
         VK_CHECK_RESULT(
             vkCreateRenderPass(m_device, &renderpassInfo, nullptr, &m_rtRenderpassNoClear));
@@ -1013,7 +1019,7 @@ void vkContext::updateGraphicsUniforms()
     if(m_cameraMoved)
     {
         m_cameraMoved = false;
-        m_settings.iteration = 0;
+        m_settings.iteration = 1;
     }
 
     void* data;

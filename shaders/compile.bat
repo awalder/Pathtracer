@@ -9,5 +9,6 @@ glslangValidator.exe -V pathRT.rgen -o spirv/pathRT.rgen.spv
 glslangValidator.exe -V pathRT.rmiss -o spirv/pathRT.rmiss.spv
 glslangValidator.exe -V pathRTBounce.rchit -o spirv/pathRTBounce.rchit.spv
 glslangValidator.exe -V pathRTBounce.rmiss -o spirv/pathRTBounce.rmiss.spv
+glslangValidator.exe -V pathRTpostProcess.comp -o spirv/pathRTpostProcess.comp.spv
 
 pause

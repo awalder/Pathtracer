@@ -28,6 +28,7 @@ class VkRTX
                         VkBuffer*           uniformBuffer,
                         VmaAllocation*      uniformMemory);
     void updateRaytracingRenderTarget(VkImageView target);
+    void updateWriteDescriptors(VkImageView resultView);
     void recordCommandBuffer(VkCommandBuffer cmdBuf,
                              VkRenderPass    renderpass,
                              VkFramebuffer   frameBuffer,
@@ -99,6 +100,7 @@ class VkRTX
         VkBool32                                                            updateOnly);
 
     void createRaytracingRenderTarget();
+    void setupComputePipeline();
 
     void createAccelerationStructures();
     void destroyAccelerationStructures(const AccelerationStructure& as);
@@ -134,6 +136,7 @@ class VkRTX
     {
         DescriptorSets ggx;
         DescriptorSets ao;
+        DescriptorSets compute;
 
         DescriptorSetGenerator ggxDSG;
         DescriptorSetGenerator aoDSG;
@@ -142,12 +145,14 @@ class VkRTX
     {
         VkPipeline GGX = VK_NULL_HANDLE;
         VkPipeline AO  = VK_NULL_HANDLE;
+        VkPipeline compute = VK_NULL_HANDLE;
     } pipelines;
 
     struct
     {
         VkPipelineLayout GGX = VK_NULL_HANDLE;
         VkPipelineLayout AO  = VK_NULL_HANDLE;
+        VkPipelineLayout compute = VK_NULL_HANDLE;
     } layouts;
 
     struct GroupIndices
@@ -184,5 +189,7 @@ class VkRTX
         VkImageView   view    = VK_NULL_HANDLE;
         VmaAllocation memory  = VK_NULL_HANDLE;
         VkSampler     sampler = VK_NULL_HANDLE;
+        VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        //VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
     } m_rtRenderTarget;
 };

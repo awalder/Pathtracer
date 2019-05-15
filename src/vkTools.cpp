@@ -153,7 +153,7 @@ std::vector<char> loadShader(const char* path)
 //
 //
 
-VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
+VkShaderModule createShaderModule(const std::string& path, VkDevice device)
 {
     auto                     code       = loadShader(path.c_str());
     VkShaderModuleCreateInfo createInfo = {};
@@ -162,7 +162,7 @@ VkShaderModule createShaderModule(const std::string& path, VkDevice deviceCtx)
     createInfo.pCode                    = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    VK_CHECK_RESULT(vkCreateShaderModule(deviceCtx, &createInfo, nullptr, &shaderModule));
+    VK_CHECK_RESULT(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
 
     return shaderModule;
 }

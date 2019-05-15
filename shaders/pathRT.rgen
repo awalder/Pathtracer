@@ -33,7 +33,7 @@ layout(binding = 2, set = 0) uniform UBO
 
     int   numAOrays;
     float aoRayLength;
-    uint   iteration;
+    uint  iteration;
 
     float time;
 }
@@ -193,6 +193,15 @@ mat3 formBasis(vec3 n)
 //
 //
 
+float maxcoord(vec3 v)
+{
+    return max(max(v.x, v.y), v.z);
+}
+
+// ----------------------------------------------------------------------------
+//
+//
+
 float sobol1DSample(uint index, const uint dimension, const uint scramble)
 {
     // These values are from the sobol implementation from sobol.h/cpp
@@ -301,16 +310,16 @@ float rand(vec2 co)
 
 float GGX_chi(float v)
 {
-    return v > 0 ? 1.0 : 0.0;
+    return v > 0.0 ? 1.0 : 0.0;
 }
 
 float GGX_Distribution(vec3 m, vec3 n, float alpha)
 {
+
     float alpha2 = alpha * alpha;
 
     float MdotN = dot(m, n);
     float chi   = GGX_chi(MdotN);
-    //float chi = GGX_chi(m.z);
 
     float cosTheta = MdotN;
     float tanTheta = sqrt(1.0 - cosTheta * cosTheta) / cosTheta;
@@ -323,21 +332,14 @@ float GGX_G1(vec3 v, vec3 m, vec3 n, float alpha)
 {
     float VdotM = dot(v, m);
     float VdotN = dot(v, n);
-    //float VdotN = v.z;
 
-    float tanTheta = sqrt(1.0 - VdotM * VdotM) / VdotM;
+    float VdotM2 = VdotM * VdotM;
+    float tan2   = (1.0 - VdotM2) / VdotM2;
 
     float chi   = GGX_chi(VdotM / VdotN);
-    float denom = 1.0 + sqrt(1.0 + alpha * alpha * tanTheta * tanTheta);
+    float denom = 1.0 + sqrt(1.0 + alpha * alpha * tan2);
 
     return chi * 2.0 / denom;
-
-
-    //float VoH = clamp(dot(v, h), 0.0, 1.0);
-    //float chi  = chi_GGX(VoH / clamp(dot(v, n), 0.0, 1.0));
-    //float VoH2 = VoH * VoH;
-    //float tan2 = (1.0 - VoH2) / VoH2;
-    //return (2.0 * chi) / (1.0 + sqrt(1.0 + alpha * alpha * tan2));
 }
 
 float GGX_Geometry(vec3 i, vec3 o, vec3 m, vec3 n, float alpha)
@@ -365,11 +367,6 @@ float GGX_Fresnel(vec3 o, vec3 m, float etaA, float etaB)
     return 0.5 * (Rs + Rp);
 }
 
-//vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
-//{
-//    return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5);
-//}
-
 vec3 GGX_Sample(vec2 rnd, float alpha)
 {
     float theta = atan(alpha * sqrt(rnd.x) / sqrt(1.0 - rnd.x));
@@ -387,7 +384,6 @@ float GGX_PDF(vec3 m, vec3 n, float alpha)
     float D     = GGX_Distribution(m, n, alpha);
     float MdotN = dot(m, n);
     return D * abs(MdotN);
-    //return D * abs(m.z);
 }
 
 float GGX_Eval(vec3 i, vec3 o, vec3 m, vec3 n, float alpha, float etaA, float etaB)
@@ -402,8 +398,6 @@ float GGX_Eval(vec3 i, vec3 o, vec3 m, vec3 n, float alpha, float etaA, float et
 
     float IdotN = abs(dot(i, n));
     float OdotN = abs(dot(o, n));
-    //float IdotN = abs(i.z);
-    //float OdotN = abs(o.z);
 
     return D * G * F / (4.0 * IdotN * OdotN);
 }
@@ -484,10 +478,10 @@ void main()
     const int   maxBounces = ubo.numIndirectBounces;
     vec4        E          = vec4(0.0);
 
-    if(ubo.iteration != 0)
+    if(ubo.iteration > 1)
     {
-        vec4 c = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
-        E.xyz  = pow(c.xyz, vec3(2.2));
+        E = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
+        //E.xyz  = pow(c.xyz, vec3(2.2));
     }
 
     for(int currentSample = 0; currentSample < ubo.samplesPerPixel; ++currentSample)
@@ -496,7 +490,8 @@ void main()
         vec2 s = nextSquareSample(sobolIndex, sobolDim, pRayScramble);
         if(ubo.samplesPerPixel == 1)
         {
-            ray = getPrimaryRay(vec2(0.5));
+            //ray = getPrimaryRay(vec2(0.5));
+            ray = getPrimaryRay(s);
         }
         else
         {
@@ -544,13 +539,19 @@ void main()
 
             if(dot(normal, Rd) > 0.0)
             {
-                normal *= -1.0;
+                normal = -normal;
+            }
+
+            vec3 geomNormal = cross(v2.pos - v0.pos, v1.pos - v0.pos);
+            if(dot(normal, geomNormal) < 0.0)
+            {
+                geomNormal = -geomNormal;
             }
 
             vec3 hitPoint =
                 v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-            hitPoint += 0.001 * normal;
 
+            //hitPoint += 0.001 * geomNormal;
             // costheta between surface normal and previous ray direction
             float cosTheta_yi = clamp(dot(normalize(-Rd), normal), 0.0, 1.0);
 
@@ -561,39 +562,49 @@ void main()
                 sampleLight(pdf, lightSamplePos, s);
             }
 
-            vec3 dirToLight = lightSamplePos - hitPoint;
+            const vec3 vLight = lightSamplePos - hitPoint;
 
             // Trace shadowray to lightsource, invokes shadowmiss kernel
             isShadowed = true;
             traceNV(topLevelAS,
                     gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
                         | gl_RayFlagsSkipClosestHitShaderNV,
-                    0xFF, 1, 0, 1, hitPoint, tmin, dirToLight, tmax, 2);
+                    0xFF, 1, 0, 1, hitPoint, tmin, vLight, tmax, 2);
 
-            float alpha = float(ubo.numAOrays) / 256.0;
+            const float alpha = float(ubo.numAOrays) / 256.0;
 
             if(!isShadowed)
             {
                 const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
-                const float r           = length(dirToLight);
+                const float r           = length(vLight);
 
-                // Angle between light surface and dirToLight vector
-                const float cosTheta_light =
-                    clamp(dot(normalize(-dirToLight), lightNormal), 0.0, 1.0);
+                // Angle between light surface and vLight vector
+                const float cosTheta_light = clamp(dot(normalize(-vLight), lightNormal), 0.0, 1.0);
 
-                // Angle between hit surface and light surface
-                const float cosTheta_surface = clamp(dot(normal, normalize(dirToLight)), 0.0, 1.0);
-                
-                // Half vector between raydir and dirtolight
-                vec3 h    = normalize(-Rd + dirToLight);
-                float brdf = GGX_Eval(-Rd, dirToLight, h, normal, alpha, 1.0, 1.5);
+                // Angle between hit surface and light vector
+                const float cosTheta_surface = clamp(dot(normal, normalize(vLight)), 0.0, 1.0);
 
-                Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
-                Ei *= vec3(brdf) * throughput;
+                // Half vector between raydir and vLight
+                vec3 h = normalize(-Rd + vLight);
+                if(dot(h, normal) < 0.0)
+                {
+                    h = -h;
+                }
+                float brdf = GGX_Eval(-Rd, vLight, h, normal, alpha, 1.0, 1.5);
+
+                if(!(brdf <= 0.0 || brdf > 0.0))
+                {
+                    Ei.xyz = vec3(1e6, 0, 1e6);
+                }
+                else
+                {
+                    Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
+                    Ei *= vec3(brdf) * throughput;
+                }
             }
 
 
-            vec2  rnd   = nextSquareSample(sobolIndex, sobolDim, scramble);
+            vec2 rnd = nextSquareSample(sobolIndex, sobolDim, scramble);
 
             vec3 i = normalize(Rd);
 
@@ -616,7 +627,7 @@ void main()
             Rd = o;
 
 
-            float Ks = GGX_Eval(i, o, m, normal, alpha, 1.0, 1.33);
+            float specularBRDF = GGX_Eval(i, o, m, normal, alpha, 1.0, 1.33);
 
             {  // New ray parameters
                 Ro = hitPoint;
@@ -644,23 +655,33 @@ void main()
                 specular *= texture(textureSamplers[mat.specularTextureId], texCoord).xyz;
             }
 
-            float Kd = 1.0 - Ks;
+            {
+                float max = maxcoord(diffuse + specular);
+                if(max > 1.0f)
+                {
+                    diffuse /= vec3(max);
+                    specular /= vec3(max);
+                }
+            }
 
-            specular *= vec3(Ks);
-            diffuse *= vec3(Kd) * INV_PI;
-            vec3 color = diffuse + specular;
+
+            vec3 color = diffuse * INV_PI + specular * specularBRDF;
 
             Ei += mat.emission * 1.0 * ubo.lightOtherE;
-
             Ei *= throughput * color;
-            //Ei *= throughput * (diffuse + specular);
+
             E += vec4(Ei, 0.0);
-            //E += Rd;
 
             float cosTheta = clamp(dot(normalize(Rd), normal), 0.0, 1.0);
             p              = cosTheta * INV_PI;
-            //throughput *= (diffuse + specular) * cosTheta / p;
-            throughput *= color * cosTheta / max(p, 0.0001);
+            if(p == 0.0f)
+            {
+                E.xyz = vec3(1e6, 0, 1e6);
+                break;
+            }
+            //p              = ggxPDF;
+            throughput *= color * cosTheta / p;
+            //throughput *= color * cosTheta / max(p, 0.0001);
 
             bounce++;
             if(bounce > maxBounces)
@@ -675,12 +696,13 @@ void main()
             }
         }
 
-        E.w += 1.0;
         sobolIndex++;
     }
 
-    vec3 color = pow(E.xyz, vec3(1.0 / 2.2));
-    color /= vec3(E.w);
+    E.w += 1.0;
+    //vec3 color = pow(E.xyz, vec3(1.0 / 2.2));
+    //color /= vec3(E.w);
     //color /= vec3(ubo.iteration + 1);
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, 0.0));
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), E);
+    //imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(color, E.w));
 }

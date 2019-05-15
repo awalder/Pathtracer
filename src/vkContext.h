@@ -179,7 +179,7 @@ class vkContext
 
         bool hideUI = false;
 
-        uint32_t iteration = 0;
+        uint32_t iteration = 1;
 
 
     } m_settings;
