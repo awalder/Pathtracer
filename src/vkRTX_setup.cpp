@@ -805,7 +805,6 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
 
     vkCmdEndRenderPass(cmdBuf);
 
-    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuf));
 }
 
 void VkRTX::generateNewScrambles()

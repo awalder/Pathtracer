@@ -58,7 +58,8 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
     //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
-    LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
+    LoadModelFromFile("../../scenes/myboxes/mybox.obj");
+    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -152,12 +153,16 @@ void vkContext::renderFrame()
     if(m_settings.RTX_ON)
     {
         VkCommandBuffer rtCommandBuffer = beginSingleTimeCommands();
-        VkRenderPass renderpass = m_cameraMoved ? m_rtRenderpass : m_rtRenderpassNoClear;
+        VkRenderPass    renderpass      = m_cameraMoved ? m_rtRenderpass : m_rtRenderpassNoClear;
+        if(m_settings.iteration < m_settings.samplesPerPixel)
+        {
+            m_vkRTX->recordCommandBuffer(rtCommandBuffer, renderpass,
+                                         m_swapchain.frameBuffers[m_currentImage],
+                                         m_swapchain.images[m_currentImage],
+                                         m_settings.rtRenderingMode);
+        }
 
-        m_vkRTX->recordCommandBuffer(rtCommandBuffer, renderpass,
-                                     m_swapchain.frameBuffers[m_currentImage],
-                                     m_swapchain.images[m_currentImage],
-                                     m_settings.rtRenderingMode);
+        VK_CHECK_RESULT(vkEndCommandBuffer(rtCommandBuffer));
 
         std::array<VkCommandBuffer, 2> cmdBuffersRT = {rtCommandBuffer, cmdBufImGui};
 
@@ -252,7 +257,9 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     ImGui::Separator();
 
     ImGui::SliderInt("Indirect bounces", &m_settings.numIndicesBounces, 0, 10, "%d");
-    ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 64, "%d");
+    ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 4096, "%d");
+    ImGui::SliderInt("AA Rays", &m_settings.numAArays, 1, 8, "%d");
+    ImGui::SliderFloat("AA filter radius", &m_settings.filterRadius, 0.1f, 4.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 1.0f, "%.3f",
                        4.0f);
     ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 100000.0f, "%.1f", 4.0f);
@@ -271,8 +278,6 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     }
     ImGui::Separator();
     ImGui::Text("%d samples accumulated", m_settings.iteration);
-
-
 
 
     ImGui::End();
@@ -1006,11 +1011,17 @@ void vkContext::updateGraphicsUniforms()
 
     ubo.numIndirectBounces = m_settings.numIndicesBounces;
     ubo.samplerPerPixel    = m_settings.samplesPerPixel;
-    ubo.aoRayLength        = m_settings.lightSourceArea;
+
+    ubo.numAArays = m_settings.numAArays;
+    ubo.filterRadius = m_settings.filterRadius;
 
     ubo.numAOrays   = m_settings.numAOrays;
     ubo.aoRayLength = m_settings.aoRayLength;
-    ubo.iteration   = m_settings.iteration++;
+
+    if(m_settings.RTX_ON == true && m_settings.iteration < m_settings.samplesPerPixel)
+    {
+        ubo.iteration = m_settings.iteration++;
+    }
     //ubo.iteration   = m_cameraMoved ? 0 : uintDist(gen);
 
     ubo.time = m_runTime;
@@ -1018,7 +1029,7 @@ void vkContext::updateGraphicsUniforms()
 
     if(m_cameraMoved)
     {
-        m_cameraMoved = false;
+        m_cameraMoved        = false;
         m_settings.iteration = 1;
     }
 
@@ -1675,6 +1686,20 @@ void vkContext::handleKeyPresses(int key, int action)
 
             default:
                 break;
+        }
+    }
+}
+
+void vkContext::handleMousePresses(int key, int action)
+{
+
+    if(action == GLFW_PRESS)
+    {
+        switch(key)
+        {
+            //case GLFW_MOUSE_BUTTON_RIGHT:
+            //    m_cameraMoved = true;
+            //    break;
         }
     }
 }

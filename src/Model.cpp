@@ -80,6 +80,14 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
         m.dissolve = mat.dissolve;
         m.ior      = mat.ior;
         m.illum    = mat.illum;
+        if(mat.roughness == 0.0f)
+        {
+            m.shininess = 0.0;
+        }
+        else
+        {
+            m.shininess = 1.0 - mat.roughness;
+        }
 
 
         {   // Diffuse

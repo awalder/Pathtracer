@@ -90,7 +90,6 @@ void vkWindow::handleKeyboardInput(int key, bool isPressed)
         keys.l_shift = isPressed;
     }
     m_vkctx->m_cameraMoved = true;
-
 }
 
 void vkWindow::handleMouseButtonInput(int button, bool isPressed)
@@ -118,10 +117,12 @@ void vkWindow::handleMouseCursorInput(double xpos, double ypos)
     if(mouseButtons.left)
     {
         m_camera.updateMouseMovements(mouse.delta);
+        if(mouse.delta != glm::vec2(0.0f))
+        {
+            m_vkctx->m_cameraMoved = true;
+        }
     }
     mouse.delta = {0.0f, 0.0f};
-
-    m_vkctx->m_cameraMoved = true;
 }
 
 void vkWindow::handleMouseScrollInput(double xpos, double ypos)
@@ -196,11 +197,13 @@ void vkWindow::onMouseButtonCallback(GLFWwindow* window, int button, int action,
 
 
     auto app = reinterpret_cast<vkWindow*>(glfwGetWindowUserPointer(window));
+
     if(action == GLFW_PRESS)
     {
         app->handleMouseButtonInput(button, true);
         if(button == GLFW_MOUSE_BUTTON_RIGHT)
         {
+            app->m_vkctx->m_cameraMoved = true;
             //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
         }
     }

@@ -2,7 +2,7 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 layout(binding = 0, set = 0, rgba8) uniform image2D resultImage;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 1, set = 0, rgba16) uniform image2D image;
 layout(binding = 2, set = 0) uniform UBO
 {
     mat4 model;
@@ -23,6 +23,9 @@ layout(binding = 2, set = 0) uniform UBO
     int   samplesPerPixel;
     float lightSourceArea;
     float lightOtherE;
+
+    int   numAArays;
+    float filterRadius;
 
     int   numAOrays;
     float aoRayLength;

@@ -189,7 +189,7 @@ class VkRTX
         VkImageView   view    = VK_NULL_HANDLE;
         VmaAllocation memory  = VK_NULL_HANDLE;
         VkSampler     sampler = VK_NULL_HANDLE;
-        VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        //VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+        VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        //VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
     } m_rtRenderTarget;
 };

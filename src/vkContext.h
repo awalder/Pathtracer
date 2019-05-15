@@ -71,6 +71,9 @@ class vkContext
         float lightSourceArea    = 0.25f;
         float lightOtherE        = 1.0f;
 
+        int numAArays = 1;
+        float filterRadius = 1.0f;
+
         int      numAOrays   = 16;
         float    aoRayLength = 1.0f;
         uint32_t iteration   = 0;
@@ -85,6 +88,7 @@ class vkContext
     bool      m_cameraMoved    = true;
 
     void handleKeyPresses(int key, int action);
+    void handleMousePresses(int key, int action);
 
     private:
     void initVulkan();
@@ -164,7 +168,10 @@ class vkContext
         float* fov;
 
         int numIndicesBounces = 3;
-        int samplesPerPixel   = 1;
+        int samplesPerPixel   = 128;
+
+        int numAArays = 1;
+        float filterRadius = 1.0f;
 
         int   numAOrays   = 16;
         float aoRayLength = 1.0f;
