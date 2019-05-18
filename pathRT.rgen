@@ -324,10 +324,36 @@ float GGX_chi(float v)
     return v > 0.0 ? 1.0 : 0.0;
 }
 
-float GGX_Distribution(vec3 wm, float alpha)
+float GGX_Distribution(vec3 wm, vec3 wn, float alpha)
 {
+    //float a2     = alpha * alpha;
+    //float MdotN  = dot(wm, wn);
+    //float MdotN2 = MdotN * MdotN;
+    //float chi    = GGX_chi(MdotN);
+
+    //float tan2Theta   = (1.0 - MdotN2) / MdotN2;
+    //float denom = M_PI * MdotN2 * MdotN2 * pow(a2 * tan2Theta, 2.0);
+
+    //return chi * a2 / denom;
+
+
+    //float denom  = MdotN2 * a2 + (1.0 - MdotN2);
+    //float denom  = M_PI * pow(MdotN2 * (a2 - 1.0) + 1.0, 2.0);
+    //return chi * a2 / (M_PI * denom * denom);
+
+    //float alpha2 = alpha * alpha;
+
+    //float MdotN = dot(wm, wn);
+    //float chi   = GGX_chi(MdotN);
+
+    //float cosTheta = MdotN;
+    //float tanTheta = sqrt(1.0 - cosTheta * cosTheta) / cosTheta;
+
+    //float denom = M_PI * pow(cosTheta, 4.0) * pow(alpha2 + tanTheta * tanTheta, 2.0);
+    //return chi * alpha2 / denom;
+
     float a2    = alpha * alpha;
-    float MdotN = wm.z;
+    float MdotN = dot(wm, wn);
     float chi   = GGX_chi(MdotN);
     float cos2  = MdotN * MdotN;
     float tan2  = (1.0 - cos2) / cos2;
@@ -336,11 +362,11 @@ float GGX_Distribution(vec3 wm, float alpha)
     return chi * a2 / denom;
 }
 
-float GGX_G1(vec3 wv, vec3 wm, float alpha)
+float GGX_G1(vec3 wv, vec3 wm, vec3 wn, float alpha)
 {
     float a2    = alpha * alpha;
     float VdotM = dot(wv, wm);
-    float VdotN = wv.z;
+    float VdotN = dot(wv, wn);
 
     float VdotM2 = VdotM * VdotM;
     float tan2   = (1.0 - VdotM2) / VdotM2;
@@ -351,9 +377,9 @@ float GGX_G1(vec3 wv, vec3 wm, float alpha)
     return chi * 2.0 / denom;
 }
 
-float GGX_Geometry(vec3 wi, vec3 wo, vec3 wm, float alpha)
+float GGX_Geometry(vec3 wi, vec3 wo, vec3 wm, vec3 wn, float alpha)
 {
-    return GGX_G1(wi, wm, alpha) * GGX_G1(wo, wm, alpha);
+    return GGX_G1(wi, wm, wn, alpha) * GGX_G1(wo, wm, wn, alpha);
 }
 
 float GGX_Fresnel(vec3 wo, vec3 wm, float etaA, float etaB)
@@ -401,7 +427,7 @@ vec3 GGX_Sample2(vec2 rnd, float alpha)
     return vec3(x, y, z);
 }
 
-float GGX_PDF(vec3 wm, float alpha)
+float GGX_PDF(vec3 wm, vec3 wn, float alpha)
 {
     //float a2       = alpha * alpha;
     //float cosTheta = abs(dot(m, n));
@@ -409,8 +435,9 @@ float GGX_PDF(vec3 wm, float alpha)
     //float denom    = M_PI * pow((cosTheta * cosTheta * (a2 - 1.0) + 1.0), 2.0);
     //return a2 * sinTheta * cosTheta / denom;
 
-    float D = GGX_Distribution(wm, alpha);
-    return D * abs(wm.z);
+    float D     = GGX_Distribution(wm, wn, alpha);
+    float MdotN = dot(wm, wn);
+    return D * abs(MdotN);
 }
 
 float GGX_Eval(vec3 wi, vec3 wo, vec3 wm, vec3 wn, float alpha, float etaA, float etaB)
@@ -419,29 +446,23 @@ float GGX_Eval(vec3 wi, vec3 wo, vec3 wm, vec3 wn, float alpha, float etaA, floa
     //o = normalize(o);
     //m = normalize(m);
 
-    float D = GGX_Distribution(wm, alpha);
-    float G = GGX_Geometry(wi, wo, wm, alpha);
+    float D = GGX_Distribution(wm, wn, alpha);
+    float G = GGX_Geometry(wi, wo, wm, wn, alpha);
     float F = GGX_Fresnel(wo, wm, etaA, etaB);
 
-    float IdotN = abs(wi.z);
-    float OdotN = abs(wo.z);
+    float IdotN = abs(dot(wi, wn));
+    float OdotN = abs(dot(wo, wn));
 
     return D * G * F / (4.0 * IdotN * OdotN);
 }
 // ----------------------------------------------------------------------------
 //
 //
-
-vec3 GGX_SchlickFresnel(vec3 r0, float radians)
-{
-    float expo = pow(1.0 - radians, 5.0);
-    return r0 + (1.0 - r0) * expo;
-}
-
 float GGX_SmithMasking(vec3 wi, vec3 wo, float alpha)
 {
-    float a2    = alpha * alpha;
-    float NdotV = abs(wo.z);
+    float a2 = alpha * alpha;
+    float NdotL = wi.z;
+    float NdotV = wo.z;
     float denom = sqrt(a2 + (1.0 - a2) * NdotV * NdotV) + NdotV;
 
     return 2.0 * NdotV / denom;
@@ -449,7 +470,7 @@ float GGX_SmithMasking(vec3 wi, vec3 wo, float alpha)
 
 float GGX_SmithMaskingShadowing(vec3 wi, vec3 wo, float alpha)
 {
-    float a2    = alpha * alpha;
+    float a2 = alpha * alpha;
     float NdotL = wi.z;
     float NdotV = wo.z;
 
@@ -466,13 +487,13 @@ vec3 GGX_SampleVNDF(vec3 wo, float alpha, vec2 rnd)
     vec3 t1 = (v.z < 0.9999) ? normalize(cross(v, vec3(0, 0, 1))) : vec3(1, 0, 0);
     vec3 t2 = cross(t1, v);
 
-    float a   = 1.0 / (1.0 + v.z);
-    float r   = sqrt(rnd.x);
+    float a = 1.0 / (1.0 + v.z);
+    float r = sqrt(rnd.x);
     float phi = (rnd.y < a) ? rnd.y / a * M_PI : M_PI + (rnd.y - a) / (1.0 - a) * M_PI;
     float p1  = r * cos(phi);
     float p2  = r * sin(phi) * ((rnd.y < a) ? 1.0 : v.z);
 
-    vec3 n = p1 * t1 + p2 * t2 + sqrt(max(0.0, 1.0 - p1 * p1 - p2 * p2)) * v;
+    vec3 n = p1 * t1 + p2 * t2 + sqrt(max(0.0, 1.0 - p1 * t1 - p2 * t2)) * v;
 
     n = normalize(vec3(alpha * n.x, alpha * n.y, max(0.0, n.z)));
     return n;
@@ -562,10 +583,10 @@ vec2 nextSquareSample(uint index, inout uint dim, uvec2 scramble)
 //
 //
 
-//vec3 GGX_ImportanceSample(uvec2 scramble, vec3 wo, vec3 normal)
-//{
-//    return vec3(1.0);
-//}
+vec3 GGX_ImportanceSample(uvec2 scramble, vec3 wo, vec3 normal)
+{
+    return vec3(1.0);
+}
 
 // ----------------------------------------------------------------------------
 //
@@ -641,7 +662,7 @@ void main()
         traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
         if(payload.primitiveID == ~0u)
         {
-            imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 1.0));
+            imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(inUV, 0.4, 0.0));
             return;
         }
 
@@ -719,95 +740,162 @@ void main()
 
             const float roughness = clamp(1.0 - mat.shininess, 0.001, 1.0);
             float       alpha     = roughness * roughness;
-            //alpha                 = float(ubo.numAOrays) / 256.0;
+            alpha                 = float(ubo.numAOrays) / 256.0;
 
             vec3 Ei = vec3(0.0);
 
             // Trace shadowray to lightsource, invokes shadowmiss kernel
             isShadowed = true;
-            //traceNV(topLevelAS,
-            //        gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
-            //            | gl_RayFlagsSkipClosestHitShaderNV,
-            //        0xFF, 1, 0, 1, hitPoint, tmin, vLight, tmax, 2);
+            traceNV(topLevelAS,
+                    gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+                        | gl_RayFlagsSkipClosestHitShaderNV,
+                    0xFF, 1, 0, 1, hitPoint, tmin, vLight, tmax, 2);
 
-            //if(!isShadowed)
-            //{
-            //    const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
-            //    const float r           = length(vLight);
-
-            //    // Angle between light surface and vLight vector
-            //    const float cosTheta_light = clamp(dot(normalize(-vLight), lightNormal), 0.0, 1.0);
-
-            //    // Angle between hit surface and light vector
-            //    const float cosTheta_surface = clamp(dot(sNormal, normalize(vLight)), 0.0, 1.0);
-
-            //    // Half vector between raydir and vLight
-            //    vec3 wm = normalize(-Rd + vLight);
-            //    vec3 wo = normalize(-Rd);
-            //    vec3 wi = normalize(vLight);
-            //    //if(dot(wm, sNormal) < 0.0)
-            //    //{
-            //    //    wm = -wm;
-            //    //}
-            //    float brdf = GGX_Eval(-Rd, vLight, wm, sNormal, alpha, 1.0, 1.5);
-
-            //    float D = GGX_Distribution(wm, sNormal, alpha);
-            //    float G = GGX_Geometry(wi, wo, wm, sNormal, alpha);
-            //    float F = GGX_Fresnel(wo, wm, 1.0, 1.5);
-
-            //    E = vec4(vec3(G), 1.0);
-            //    break;
-
-            //    if(!(brdf <= 0.0 || brdf > 0.0))
-            //    {
-            //        //Ei.xyz = vec3(1e6, 0, 1e6);
-            //    }
-            //    else
-            //    {
-            //        Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
-            //        Ei *= vec3(brdf) * throughput;
-            //    }
-            //}
-
-            const mat3 mLocalToWorld = formBasis(sNormal);
-            const mat3 mWorldToLocal = transpose(mLocalToWorld);
-            vec3       wo            = normalize(mWorldToLocal * (-Rd));
-
-            vec3 wi          = vec3(0.0);
-            vec3 wm          = vec3(0.0);
-            vec3 specularBRDF = vec3(0.0);
-
+            if(!isShadowed)
             {
-                int cnt = 0;
-                do
+                const vec3  lightNormal = -normalize(vec4(ubo.lightTransform[2]).xyz);
+                const float r           = length(vLight);
+
+                // Angle between light surface and vLight vector
+                const float cosTheta_light = clamp(dot(normalize(-vLight), lightNormal), 0.0, 1.0);
+
+                // Angle between hit surface and light vector
+                const float cosTheta_surface = clamp(dot(sNormal, normalize(vLight)), 0.0, 1.0);
+
+                // Half vector between raydir and vLight
+                vec3 wm = normalize(-Rd + vLight);
+                vec3 wo = normalize(-Rd);
+                vec3 wi = normalize(vLight);
+                //if(dot(wm, sNormal) < 0.0)
+                //{
+                //    wm = -wm;
+                //}
+                float brdf = GGX_Eval(-Rd, vLight, wm, sNormal, alpha, 1.0, 1.5);
+
+                float D = GGX_Distribution(wm, sNormal, alpha);
+                float G = GGX_Geometry(wi, wo, wm, sNormal, alpha);
+                float F = GGX_Fresnel(wo, wm, 1.0, 1.5);
+
+                E = vec4(vec3(G), 1.0);
+                break;
+
+                if(!(brdf <= 0.0 || brdf > 0.0))
                 {
-                    vec2 rnd = nextSquareSample(sobolIndex, sobolDim, scramble);
-                    wm       = GGX_SampleVNDF(wo, alpha, rnd);
-                    wi       = normalize(reflect(-wo, wm));
-                    cnt++;
-                } while(wi.z <= 0.0 && cnt <= 200);
-
+                    //Ei.xyz = vec3(1e6, 0, 1e6);
+                }
+                else
                 {
-                    vec3  F  = GGX_SchlickFresnel(specular, dot(wi, wm));
-                    //float F  = GGX_Fresnel(wo, wm, 1.0, 1.5);
-                    float G1 = GGX_SmithMasking(wi, wo, alpha);
-                    float G2 = GGX_SmithMaskingShadowing(wi, wo, alpha);
-                    //float G2 = GGX_Geometry(wi, wo, wm, alpha);
-
-                    float D   = GGX_Distribution(wm, alpha);
-                    float G1v = GGX_G1(wo, wm, alpha);
-
-                    specularBRDF = vec3(F * (G2 / G1));
-
-                    p = G1v * abs(dot(wm, wi)) * D / wi.z;
-                    p *= 1.0 / (4.0 * abs(dot(wo, wm)));
+                    Ei += ubo.lightE * cosTheta_light * cosTheta_surface / (r * r * pdf);
+                    Ei *= vec3(brdf) * throughput;
                 }
             }
 
-            wi = mLocalToWorld * wi;
+
+            const vec3 wo = normalize(-Rd);
+            const mat3 B  = formBasis(sNormal);
+
+            vec3 wi = vec3(0.0);
+            vec3 wm = vec3(0.0);
+
+            {
+                bool breakout = false;
+                int  count    = 0;
+                do
+                {
+                    vec2 rnd = nextSquareSample(sobolIndex, sobolDim, scramble);
+                    wm       = normalize(B * GGX_Sample2(rnd, alpha));
+
+                    count++;
+                    if(count >= 15)
+                    {
+                        breakout = true;
+                        break;
+                    }
+                } while(dot(wo, wm) <= 0.0);
+                if(breakout)
+                {
+                    break;
+                }
+
+                wi = normalize(reflect(-wo, wm));
+            }
+
+            float specularBRDF = GGX_Eval(wi, wo, wm, sNormal, alpha, 1.0, 1.33);
+            float ggxPDF       = GGX_PDF(wm, sNormal, alpha) / (4.0 * abs(dot(wo, wm)));
+
+            //ggxPDF = clamp(ggxPDF, 0.1, 10);
+
+            float D = GGX_Distribution(wm, sNormal, alpha);
+            float G = GGX_Geometry(wi, wo, wm, sNormal, alpha);
+            float F = GGX_Fresnel(wo, wm, 1.0, 1.5);
+
+            //float VdotM = dot(wi, wm);
+            //float VdotN = dot(wi, sNormal);
+
+
+            //float tt = abs(G);
+            //E = vec4(vec3(tt), 1.0);
+            //break;
 
             Ro = hitPoint;
             Rd = wi * vec3(100.0);
+
+            //const vec3 vI_refl   = reflect(vIncident, sNormal);
+            //const mat3 B         = formBasis(vI_refl);
+
+            //{
+            //    bool breakout = false;
+            //    int  count    = 0;
+            //    do
+            //    {
+            //        vec2 rnd = nextSquareSample(sobolIndex, sobolDim, scramble);
+            //        vExitent = GGX_Sample(rnd, alpha2);
+            //        vExitent = normalize(B * vExitent) * vec3(100.0);
+            //        count++;
+            //        if(count >= 5)
+            //        {
+            //            breakout = true;
+            //            break;
+            //        }
+            //    } while(dot(vExitent, gNormal) < 0.0);
+
+            //    if(breakout)
+            //    {
+            //        break;
+            //    }
+            //}
+
+            //const vec3 vHalf  = normalize(vIncident + vExitent);
+
+            //vec3 iRefl = reflect(i, normal);
+            //mat3 B     = formBasis(iRefl);
+
+            //for(int k = 0; k < 25; ++k)
+            //{
+            //    o        = GGX_Sample(rnd, alpha2);
+            //    o        = normalize(B * o) * vec3(100.0);
+            //    if(dot(o, normal) > 0.0)
+            //    {
+            //        break;
+            //    }
+            //}
+
+            //if(true)
+            //{
+            //    float a2       = alpha2;
+            //    float cosTheta = dot(vHalf, sNormal);
+            //    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+            //    float denom    = M_PI * pow((cosTheta * cosTheta * (a2 - 1.0) + 1.0), 2.0);
+            //    //Ei = vec3(1e6, 0, 1e6);
+            //    float res = clamp(a2 * cosTheta / denom, 0.0001, 1.0);
+            //    //E = vec4(vec3(res), 1.0);
+            //    //E = vec4(vec3(dot(vHalf, sNormal)), 1.0);
+            //    //break;
+            //}
+
+            //float specularBRDF = GGX_PDF(m, normal, alpha2);
+            //float specularBRDF = GyyGX_Eval(vIncident, vExitent, vHalf, gNormal, alpha2, 1.0, 1.33);
+
 
             const vec3 diffuseBRDF = diffuse * INV_PI;
             vec4       color       = vec4(diffuseBRDF + specular * specularBRDF, 1.0);
@@ -816,18 +904,20 @@ void main()
             // Filtering
             if(ubo.numAArays != 1)
             {
-                float weight = getMitchellWeight((rayOffset + vec2(0.5)) * vec2(ubo.filterRadius));
-                color *= vec4(weight);
+                //float weight = getMitchellWeight((rayOffset + vec2(0.5)) * vec2(ubo.filterRadius));
+                //color *= vec4(weight);
             }
 
             // -----------------------
             // Accumulate
-            Ei += mat.emission * ubo.lightOtherE;
-            Ei *= throughput * color.xyz;
+            //Ei += mat.emission * ubo.lightOtherE;
+            //Ei *= throughput * color.xyz;
 
             E += vec4(Ei, color.w);
 
             float cosTheta = clamp(dot(normalize(Rd), sNormal), 0.00001, 1.0);
+            p              = cosTheta * INV_PI;
+            //p              = ggxPDF;
             if(!(p < 0.0 || p >= 0.0))  // Test if NaN
             {
                 //E.xyz = vec3(1e6, 0, 1e6);
@@ -838,7 +928,7 @@ void main()
                 //E.xyz = vec3(1e0, 1e6, 1e0);
                 break;
             }
-            throughput *= color.xyz * cosTheta * float(ubo.numAOrays);
+            throughput *= color.xyz * cosTheta / p;
 
             bounce++;
             if(bounce > maxBounces)

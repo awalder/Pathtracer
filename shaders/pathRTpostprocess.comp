@@ -41,10 +41,9 @@ void main()
     const int j     = int(gl_GlobalInvocationID.y);
     vec4      color = imageLoad(image, ivec2(i, j));
 
-    //color /= vec4(ubo.iteration);
-    if(color.w != 0.0)
+    //if(color.w != 0.0)
     {
-        color.xyz /= color.w;
+        color /= color.w;
     }
     color.xyz = pow(color.xyz, vec3(1.0 / 2.2));
 

@@ -1012,7 +1012,7 @@ void vkContext::updateGraphicsUniforms()
     ubo.numIndirectBounces = m_settings.numIndicesBounces;
     ubo.samplerPerPixel    = m_settings.samplesPerPixel;
 
-    ubo.numAArays = m_settings.numAArays;
+    ubo.numAArays    = m_settings.numAArays;
     ubo.filterRadius = m_settings.filterRadius;
 
     ubo.numAOrays   = m_settings.numAOrays;
@@ -1020,7 +1020,8 @@ void vkContext::updateGraphicsUniforms()
 
     if(m_settings.RTX_ON == true && m_settings.iteration < m_settings.samplesPerPixel)
     {
-        ubo.iteration = m_settings.iteration++;
+        ubo.iteration = m_settings.iteration;
+        m_settings.iteration += m_settings.numAArays;
     }
     //ubo.iteration   = m_cameraMoved ? 0 : uintDist(gen);
 
