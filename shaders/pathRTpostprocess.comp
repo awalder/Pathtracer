@@ -41,7 +41,7 @@ void main()
     const int j     = int(gl_GlobalInvocationID.y);
     vec4      color = imageLoad(image, ivec2(i, j));
 
-    //if(color.w != 0.0)
+    if(color.w != 0.0)
     {
         color /= color.w;
     }

@@ -24,18 +24,20 @@ class vkContext;
 namespace VkTools {
 struct Material
 {
-    glm::vec3 ambient       = glm::vec3(0.1f, 0.1f, 0.1f);
-    glm::vec3 diffuse       = glm::vec3(0.0f, 1.0f, 1.0f);
-    glm::vec3 specular      = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 transmittance = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 emission      = glm::vec3(0.0f, 0.0f, 0.0f);
-    float     shininess     = 0.0f;
-    float     ior           = 1.0f;
-    float     dissolve      = 1.0f;
-    int       illum         = 0;
-    int       diffuseTextureID     = -1;
-    int       specularTextureID     = -1;
-    glm::vec3 pad;
+    glm::vec3 ambient           = glm::vec3(0.1f, 0.1f, 0.1f);
+    glm::vec3 diffuse           = glm::vec3(0.0f, 1.0f, 1.0f);
+    glm::vec3 specular          = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 transmittance     = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 emission          = glm::vec3(0.0f, 0.0f, 0.0f);
+    float     shininess         = 0.0f;
+    float     metallic          = 0.0f;
+    float     ior               = 1.0f;
+    float     dissolve          = 1.0f;
+    int       illum             = 0;
+    int       diffuseTextureID  = -1;
+    int       specularTextureID = -1;
+    int       normalTextureID   = -1;
+    float pad;
 };
 
 enum class TextureType

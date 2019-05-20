@@ -128,6 +128,25 @@ void VkTools::Model::LoadModelFromFile(const std::string& filepath)
             }
         }
 
+        {   // Normal map
+            bool skip = false;
+            for(size_t i = 0; i < m_texturePaths.size(); ++i)
+            {
+                if(std::strcmp(m_texturePaths[i].c_str(), mat.bump_texname.c_str()) == 0)
+                {
+                    m.normalTextureID = i;
+                    skip               = true;
+                    break;
+                }
+            }
+            if(!skip && !mat.bump_texname.empty())
+            {
+                auto ret = replaceSubString(mat.bump_texname, "\\\\", "/");
+                m_texturePaths.push_back(ret);
+                m.normalTextureID = static_cast<uint32_t>(m_texturePaths.size() - 1);
+            }
+        }
+
         m_materials.emplace_back(m);
     }
 

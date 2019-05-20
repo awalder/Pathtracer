@@ -5,7 +5,7 @@
 + [Current state](#Currentstate)
 
 ## <a name="Description"></a> Description
-Purpose of this project is to create bidirectional pathtracer (BDPT) taking advantage of the RT-cores present
+Purpose of this project is to create pathtracer taking advantage of the RT-cores present
 in (currently) latest generation NVIDIA graphics cards. This naturally limits support only to RTX-20xx series.
 NVIDIA drivers 425.31 begun supporting VK_NVX_raytracing extensions on Pascal graphics cards but I have not tested this.
 
@@ -14,7 +14,7 @@ This reposity contains everything required to build the project. So far only VS2
 ```
 git clone https://github.com/awalder/Pathtracer.git
 ```
-Use cmake to build Visual studio makefiles
+Use cmake to build Visual studio project files
 ```
 cmake -G "Visual Studio 15 Win64"
 ```
@@ -22,6 +22,13 @@ cmake -G "Visual Studio 15 Win64"
 ## <a name="Currentstate"></a> Current state
 This is still work on progress. Currently can load scene, render it using rasterizing pipeline or raytrace using RT-cores.
 Two modes implemented, pathtracing and ambient occlusion.
+
+### Implemented features / TODO list
+- [ ] Bidirectiona pathtracer
+- [ ] Multiple importance sampling
+- [x] Cook-Torrance microfacet model
+
+There is many smaller tasks to be done and issues needing fixing but these point the direction for this project.
 
 ## External libraries used
 - [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
@@ -42,4 +49,6 @@ Two modes implemented, pathtracing and ambient occlusion.
 ### Raytracing
 - [Physically based rendering book](http://www.pbr-book.org/)
 - [NVIDIA Vulkan Ray Tracing Tutorial](https://developer.nvidia.com/rtx/raytracing/vkray)
+- [Importance Sampling techniques for GGX with Smith Masking-Shadowing: Part 2](https://schuttejoe.github.io/post/ggximportancesamplingpart2/)
+
 

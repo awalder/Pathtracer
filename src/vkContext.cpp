@@ -56,10 +56,13 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/cornell/cornell_chesterfield.obj");
     //LoadModelFromFile("../../scenes/living_room/living_room.obj");
     //LoadModelFromFile("../../scenes/dragon/dragon.obj");
-    //LoadModelFromFile("../../scenes/crytek-sponza/sponza.obj");
+    LoadModelFromFile("../../scenes/crytek-sponza/sponza2.obj");
+    //LoadModelFromFile("../../scenes/crytek_sponza/sponza.obj");
     //LoadModelFromFile("../../scenes/conference/conference.obj");
-    LoadModelFromFile("../../scenes/myboxes/mybox.obj");
-    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon.obj");
+    //LoadModelFromFile("../../scenes/myboxes/mybox.obj");
+    //LoadModelFromFile("../../scenes/classroom/classroom.obj");
+
+    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon3.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -257,10 +260,10 @@ void vkContext::renderImGui(VkCommandBuffer commandBuffer)
     ImGui::Separator();
 
     ImGui::SliderInt("Indirect bounces", &m_settings.numIndicesBounces, 0, 10, "%d");
-    ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 4096, "%d");
+    ImGui::SliderInt("SPP", &m_settings.samplesPerPixel, 1, 4096 * 8, "%d");
     ImGui::SliderInt("AA Rays", &m_settings.numAArays, 1, 8, "%d");
     ImGui::SliderFloat("AA filter radius", &m_settings.filterRadius, 0.1f, 4.0f, "%.3f", 1.0f);
-    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 1.0f, "%.3f",
+    ImGui::SliderFloat("Light source area", &m_settings.lightSourceArea, 0.001f, 100.0f, "%.3f",
                        4.0f);
     ImGui::SliderFloat("Area light intensity", &m_settings.lightE, 0.1f, 100000.0f, "%.1f", 4.0f);
     ImGui::SliderFloat("Light intensity", &m_settings.lightOtherE, 0.0f, 10000.0f, "%.1f", 4.0f);
