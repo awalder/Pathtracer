@@ -670,6 +670,7 @@ void main()
         {
 
             rayOffset = rayOffset * 2.0 - 1.0;
+            rayOffset *= ubo.filterRadius;
             ray       = getPrimaryRay(rayOffset + vec2(0.5));
             //ray = getPrimaryRay(vec2(0.5));
         }
@@ -864,7 +865,8 @@ void main()
                     }
                     else
                     {
-                        if(refract(wo, sNormal, wi, 1.0 / 1.45))
+                        //if(refract(wo, wm, wi, 1.0 / 1.45))
+                        if(refract(wo, vec3(0, 0, 1), wi, 1.0 / 1.45))
                         {
                         }
                         else
@@ -879,12 +881,10 @@ void main()
                     wi = normalize(reflect(-wo, wm));
                 }
 
-
-                if(mat.dissolve == 1.0)
+                if(wi.z > 0.0)
                 {
-                    if(wi.z > 0.0)
+                    if(mat.dissolve == 1.0)
                     {
-                        //float F  = GGX_Fresnel(wo, wm, 1.0, 1.5);
                         vec3  F  = GGX_SchlickFresnel(specular, dot(wi, wm));
                         float G1 = clamp(GGX_SmithMasking(wi, wo, alpha), 1e-4, 1.0);
                         float G2 = GGX_SmithMaskingShadowing(wi, wo, alpha);
@@ -898,10 +898,7 @@ void main()
                         p = G1v * abs(dot(wm, wi)) * D / wi.z;
                         p *= 1.0 / (4.0 * abs(dot(wo, wm)));
                     }
-                }
-                else
-                {
-                    if(wi.z > 0.0)
+                    else
                     {
                         //float F  = GGX_Fresnel(wo, wm, 1.0, 1.5);
                         vec3  F  = GGX_SchlickFresnel(specular, dot(wi, wm));
@@ -925,17 +922,17 @@ void main()
             Ro = hitPoint;
             Rd = wi * vec3(1000.0);
 
-            const vec3 diffuse = albedo * INV_PI;
-            //vec4       color   = vec4(diffuse * specularBRDF, 1.0);
+            const vec3 diffuse = albedo * 1.0;
+            //const vec3 diffuse = albedo * INV_PI;
             vec4 color = vec4(diffuse + specular * specularBRDF, 1.0);
 
             // -----------------------
             // Filtering
-            //if(ubo.numAArays != 1)
-            //{
-            //    float weight = getMitchellWeight((rayOffset + vec2(0.5)) * vec2(ubo.filterRadius));
-            //    color /= vec4(weight);
-            //}
+            if(ubo.numAArays != 1)
+            {
+                float weight = getMitchellWeight(rayOffset + vec2(0.5));
+                color /= vec4(weight);
+            }
 
             // -----------------------
             // Accumulate

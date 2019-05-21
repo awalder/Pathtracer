@@ -28,7 +28,7 @@ Two modes implemented, pathtracing and ambient occlusion.
 - [ ] Multiple importance sampling
 - [x] Cook-Torrance microfacet model
 
-There is many smaller tasks to be done and issues needing fixing but these point the direction for this project.
+There are many smaller tasks to be done and issues needing fixing but these point the direction for this project.
 
 ## External libraries used
 - [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
