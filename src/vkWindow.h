@@ -43,7 +43,7 @@ class vkWindow
     private:
     GLFWwindow* m_GLFWwindow = nullptr;
     vkContext*  m_vkctx  = nullptr;
-    VkExtent2D  m_WindowSize = {1280, 1280};
+    VkExtent2D  m_WindowSize = {900, 900};
 
     void moveLightToCamera();
 

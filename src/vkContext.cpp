@@ -62,8 +62,8 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/myboxes/mybox.obj");
     //LoadModelFromFile("../../scenes/classroom/classroom.obj");
 
-    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon3.obj");
-    LoadModelFromFile("../../scenes/Balls/balls.obj");
+    LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon3.obj");
+    //LoadModelFromFile("../../scenes/Balls/balls.obj");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
