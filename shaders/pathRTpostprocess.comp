@@ -45,7 +45,7 @@ void main()
     {
         color /= color.w;
     }
-    color.xyz = color.xyz / (color.xyz + vec3(1.0))
+    color.xyz = color.xyz / (color.xyz + vec3(1.0));
     color.xyz = pow(color.xyz, vec3(1.0 / 2.2));
 
     imageStore(resultImage, ivec2(i, j), color);

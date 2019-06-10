@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <array>
 #include <cstdlib>
 #include <string>
@@ -25,19 +24,16 @@ namespace VkTools {
 struct Material
 {
     glm::vec3 ambient           = glm::vec3(0.1f, 0.1f, 0.1f);
-    glm::vec3 diffuse           = glm::vec3(0.0f, 1.0f, 1.0f);
+    glm::vec3 baseColorFactor   = glm::vec3(0.0);
+    glm::vec3 albedo            = glm::vec3(0.0f, 1.0f, 1.0f);
     glm::vec3 specular          = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 transmittance     = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 emission          = glm::vec3(0.0f, 0.0f, 0.0f);
-    float     shininess         = 0.0f;
-    float     metallic          = 0.0f;
-    float     ior               = 1.0f;
-    float     dissolve          = 1.0f;
-    int       illum             = 0;
-    int       diffuseTextureID  = -1;
+    int       baseColorTexture  = -1;
     int       specularTextureID = -1;
-    int       normalTextureID   = -1;
-    float pad;
+    int       normalTexture     = -1;
+    int       roughnessTexture  = -1;
+    int       metallicTexture   = -1;
+    glm::vec3 pad;
 };
 
 enum class TextureType
@@ -54,22 +50,28 @@ struct VertexPNTC
 {
     glm::vec3 p;
     glm::vec3 n;
-    glm::vec2 t;
+    glm::vec2 uv0;
+    glm::vec2 uv1;
     glm::vec3 c;
     int       materialID = -1;
 
     VertexPNTC() {}
-    VertexPNTC(const glm::vec3& pp, const glm::vec3& nn, const glm::vec2& tt, const glm::vec4& cc)
+    VertexPNTC(const glm::vec3& pp,
+               const glm::vec3& nn,
+               const glm::vec2& uv0,
+               const glm::vec2& uv1,
+               const glm::vec4& cc)
         : p(pp)
         , n(nn)
-        , t(tt)
+        , uv0(uv0)
+        , uv1(uv1)
         , c(cc)
     {
     }
 
     bool operator==(const VertexPNTC& other) const
     {
-        return p == other.p && n == other.n && t == other.t && c == other.c;
+        return p == other.p && n == other.n && uv0 == other.uv0 && c == other.c;
     }
 
 
@@ -100,14 +102,19 @@ struct VertexPNTC
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].binding  = 0;
         attributeDescriptions[2].format   = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset   = offsetof(VertexPNTC, t);
+        attributeDescriptions[2].offset   = offsetof(VertexPNTC, uv0);
 
-        attributeDescriptions[3].location = 3;
+        attributeDescriptions[2].location = 3;
+        attributeDescriptions[2].binding  = 0;
+        attributeDescriptions[2].format   = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset   = offsetof(VertexPNTC, uv1);
+
+        attributeDescriptions[3].location = 4;
         attributeDescriptions[3].binding  = 0;
         attributeDescriptions[3].format   = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[3].offset   = offsetof(VertexPNTC, c);
 
-        attributeDescriptions[4].location = 4;
+        attributeDescriptions[4].location = 5;
         attributeDescriptions[4].binding  = 0;
         attributeDescriptions[4].format   = VK_FORMAT_R32_SINT;
         attributeDescriptions[4].offset   = offsetof(VertexPNTC, materialID);
