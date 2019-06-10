@@ -29,7 +29,7 @@ Two modes implemented, pathtracing and ambient occlusion.
 ### Implemented features / TODO list
 - [ ] Bidirectiona pathtracer
 - [ ] Multiple importance sampling
-- [x] Cook-Torrance microfacet model
+- [x] Trowbridge-Reitz microfacet model
 
 There are many smaller tasks to be done and issues needing fixing but these point the direction for this project.
 
