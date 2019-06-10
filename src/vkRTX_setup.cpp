@@ -370,14 +370,14 @@ void VkRTX::updateWriteDescriptors(VkImageView resultView)
 
     std::array<VkWriteDescriptorSet, 1> descriptorWrites = {};
 
-    descriptorWrites[0].sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[0].pNext            = nullptr;
-    descriptorWrites[0].dstSet           = descriptors.compute.descriptorSet;
-    descriptorWrites[0].dstBinding       = 0;
-    descriptorWrites[0].dstArrayElement  = 0;
-    descriptorWrites[0].descriptorCount  = 1;
-    descriptorWrites[0].descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    descriptorWrites[0].pImageInfo       = &resultImageInfo;
+    descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].pNext           = nullptr;
+    descriptorWrites[0].dstSet          = descriptors.compute.descriptorSet;
+    descriptorWrites[0].dstBinding      = 0;
+    descriptorWrites[0].dstArrayElement = 0;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[0].pImageInfo      = &resultImageInfo;
 
     vkUpdateDescriptorSets(m_vkctx->getDevice(), static_cast<uint32_t>(descriptorWrites.size()),
                            descriptorWrites.data(), 0, nullptr);
@@ -740,22 +740,6 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
                              hitGroupStride, VK_NULL_HANDLE, 0, 0, m_extent.width, m_extent.height,
                              1);
 
-            imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            imageMemoryBarrier.dstAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageMemoryBarrier.image     = m_rtRenderTarget.image;
-
-            vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
-                                 &imageMemoryBarrier);
-
-            vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelines.compute);
-            vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, layouts.compute, 0, 1,
-                                    &descriptors.compute.descriptorSet, 0, nullptr);
-            vkCmdDispatch(cmdBuf, m_extent.width / 16, m_extent.height / 16, 1);
-
 
             break;
         // Ambient occlusion
@@ -778,6 +762,21 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
 
             break;
     }
+
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    imageMemoryBarrier.oldLayout     = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.newLayout     = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.image         = m_rtRenderTarget.image;
+
+    vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                         &imageMemoryBarrier);
+
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelines.compute);
+    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, layouts.compute, 0, 1,
+                            &descriptors.compute.descriptorSet, 0, nullptr);
+    vkCmdDispatch(cmdBuf, m_extent.width / 16, m_extent.height / 16, 1);
 
     // Transform rendertarget layout GENERAL -> TRANSFER_SRC
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -804,7 +803,6 @@ void VkRTX::recordCommandBuffer(VkCommandBuffer cmdBuf,
     vkCmdBeginRenderPass(cmdBuf, &renderPassInfoRT, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdEndRenderPass(cmdBuf);
-
 }
 
 void VkRTX::generateNewScrambles()

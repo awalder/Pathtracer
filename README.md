@@ -8,6 +8,9 @@
 Purpose of this project is to create pathtracer taking advantage of the RT-cores present
 in (currently) latest generation NVIDIA graphics cards. This naturally limits support only to RTX-20xx series.
 NVIDIA drivers 425.31 begun supporting VK_NVX_raytracing extensions on Pascal graphics cards but I have not tested this.
+Currently requires Vulkan SDK to build and run.
+
+A short video demonstration https://youtu.be/MpXvojB6lLM
 
 ## <a name="Building"></a> Building
 This reposity contains everything required to build the project. So far only VS2017 have been tested.
@@ -26,7 +29,7 @@ Two modes implemented, pathtracing and ambient occlusion.
 ### Implemented features / TODO list
 - [ ] Bidirectiona pathtracer
 - [ ] Multiple importance sampling
-- [x] Trowbridge-Reitz microfacet surface model
+- [x] Cook-Torrance microfacet model
 
 There are many smaller tasks to be done and issues needing fixing but these point the direction for this project.
 

@@ -28,6 +28,7 @@ struct Material
     float pad;
 };
 
+const int sizeofMat = 6;
 
 layout(binding = 1) buffer matBufferObject
 {
@@ -37,33 +38,30 @@ materials;
 
 layout(binding = 2) uniform sampler2D[] textureSamplers;
 
-const int sizeofMat = 7;
 Material unpackMaterial()
 {
-    WaveFrontMaterial m;
-    vec4              d0 = materials.m[sizeofMat * matIndex + 0];
-    vec4              d1 = materials.m[sizeofMat * matIndex + 1];
-    vec4              d2 = materials.m[sizeofMat * matIndex + 2];
-    vec4              d3 = materials.m[sizeofMat * matIndex + 3];
-    vec4              d4 = materials.m[sizeofMat * matIndex + 4];
-    vec4              d5 = materials.m[sizeofMat * matIndex + 5];
-    vec4              d6 = materials.m[sizeofMat * matIndex + 6];
+    Material m;
+    vec4     d0 = materials.m[sizeofMat * matIndex + 0];
+    vec4     d1 = materials.m[sizeofMat * matIndex + 1];
+    vec4     d2 = materials.m[sizeofMat * matIndex + 2];
+    vec4     d3 = materials.m[sizeofMat * matIndex + 3];
+    vec4     d4 = materials.m[sizeofMat * matIndex + 4];
+    vec4     d5 = materials.m[sizeofMat * matIndex + 5];
 
-    m.ambient            = vec3(d0.x, d0.y, d0.z);
-    m.diffuse            = vec3(d0.w, d1.x, d1.y);
-    m.specular           = vec3(d1.z, d1.w, d2.x);
-    m.transmittance      = vec3(d2.y, d2.z, d2.w);
-    m.emission           = vec3(d3.x, d3.y, d3.z);
-    m.shininess          = d3.w;
-    m.metallic           = d4.x;
-    m.ior                = d4.y;
-    m.dissolve           = d4.z;
-    m.illum              = int(d4.w);
-    m.diffuseTextureId   = floatBitsToInt(d5.x);
-    m.specularTextureId  = floatBitsToInt(d5.y);
-    m.normalTextureId    = floatBitsToInt(d5.z);
-    m.roughnessTextureId = floatBitsToInt(d5.w);
-    m.metallicTextureId  = floatBitsToInt(d6.x);
+    m.ambient           = vec3(d0.x, d0.y, d0.z);
+    m.diffuse           = vec3(d0.w, d1.x, d1.y);
+    m.specular          = vec3(d1.z, d1.w, d2.x);
+    m.transmittance     = vec3(d2.y, d2.z, d2.w);
+    m.emission          = vec3(d3.x, d3.y, d3.z);
+    m.shininess         = d3.w;
+    m.metallic          = d4.x;
+    m.ior               = d4.y;
+    m.dissolve          = d4.z;
+    m.illum             = int(d4.w);
+    m.diffuseTextureId  = floatBitsToInt(d5.x);
+    m.specularTextureId = floatBitsToInt(d5.y);
+    m.normalTextureId   = floatBitsToInt(d5.z);
+    return m;
 
     return m;
 }

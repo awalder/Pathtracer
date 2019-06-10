@@ -10,6 +10,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
 #include <glm/glm.hpp>
+#include <string>
 
 class vkContext;
 
@@ -37,13 +38,14 @@ class vkWindow
     GLFWwindow* getWindow() const { return m_GLFWwindow; }
     VkExtent2D  getWindowSize() const { return m_WindowSize; }
     void        update(float deltaTime);
+    void        setWindowTitle(const std::string& title);
 
     CameraControls m_camera;
 
     private:
     GLFWwindow* m_GLFWwindow = nullptr;
-    vkContext*  m_vkctx  = nullptr;
-    VkExtent2D  m_WindowSize = {900, 900};
+    vkContext*  m_vkctx      = nullptr;
+    VkExtent2D  m_WindowSize = {1280, 1280};
 
     void moveLightToCamera();
 

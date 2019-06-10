@@ -39,8 +39,8 @@ class CameraControls
 
 
     float m_fov  = 65.0f;
-    float m_near = 0.1f;
-    float m_far  = 1000.0f;
+    float m_near = 0.01f;
+    float m_far  = 100.0f;
 
 
     private:
@@ -53,8 +53,8 @@ class CameraControls
     glm::vec3       m_right    = glm::vec3(0.0f, 0.0f, -1.0f);
     const glm::vec3 m_worldUp  = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    float m_speed            = 3.0f;
-    float m_mouseSensitivity = 0.3f;
+    float m_speed            = 0.5f;
+    float m_mouseSensitivity = 0.1f;
     float m_aspect;
     bool  m_cameraMoved = false;
 

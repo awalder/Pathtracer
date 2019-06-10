@@ -4,7 +4,7 @@
 
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 1, set = 0, rgba16) uniform image2D image;
 
 layout(binding = 2, set = 0) uniform UBO
 {
@@ -27,8 +27,14 @@ layout(binding = 2, set = 0) uniform UBO
     float lightSourceArea;
     float lightOtherE;
 
+    int   numAArays;
+    float filterRadius;
+
     int   numAOrays;
     float aoRayLength;
+    uint  iteration;
+
+    float time;
 }
 ubo;
 
@@ -198,6 +204,13 @@ void main()
     float tmin     = 0.00001;
     float tmax     = 1.0;
 
+    vec4 E = vec4(0.0);
+
+    if(ubo.iteration > 1)
+    {
+        E = imageLoad(image, ivec2(gl_LaunchIDNV.xy));
+    }
+
     // Test if primary ray hits scene
     traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, Ro, tmin, Rd, tmax, 0);
     if(payload.primitiveID == ~0u)
@@ -253,7 +266,8 @@ void main()
         }
     }
 
-    vec3 E = vec3(float(aoNoHitCount) / float(ubo.numAOrays));
+    E.xyz += vec3(float(aoNoHitCount) / float(ubo.numAOrays));
+    E.w += 1.0;
 
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(E, 0.0));
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), E);
 }

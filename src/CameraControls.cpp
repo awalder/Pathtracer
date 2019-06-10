@@ -91,11 +91,11 @@ void CameraControls::updateScroll(float v)
 {
     if(v > 0.0f)
     {
-        m_speed *= 1.2f;
+        m_speed *= 1.1f;
     }
     else
     {
-        m_speed *= 0.8f;
+        m_speed *= 0.9f;
     }
 }
 

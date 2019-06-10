@@ -17,14 +17,9 @@ void vkWindow::initGLFW()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    auto*       monitor = glfwGetPrimaryMonitor();
-    const auto* mode    = glfwGetVideoMode(monitor);
-    m_WindowSize.height = mode->height * 9.0f / 10.0f;
-    m_WindowSize.width  = m_WindowSize.height;
-
     m_GLFWwindow =
         glfwCreateWindow(static_cast<int>(m_WindowSize.width),
-                         static_cast<int>(m_WindowSize.height), "dummyTitle", nullptr, nullptr);
+                         static_cast<int>(m_WindowSize.height), "", nullptr, nullptr);
 
     glfwSetWindowUserPointer(m_GLFWwindow, this);
     glfwSetKeyCallback(m_GLFWwindow, vkWindow::onKeyCallback);
@@ -57,6 +52,11 @@ void vkWindow::update(float deltaTime)
 
     m_camera.updateMovements(deltaTime, move);
     m_camera.update(deltaTime);
+}
+
+void vkWindow::setWindowTitle(const std::string& title)
+{
+    glfwSetWindowTitle(m_GLFWwindow, title.c_str());
 }
 
 void vkWindow::moveLightToCamera()

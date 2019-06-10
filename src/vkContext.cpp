@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
+#include <string>
 
 #include <imgui_impl_glfw_vulkan.h>
 
@@ -29,6 +30,8 @@ void vkContext::initVulkan()
         m_debugAndExtensions->setupDebugMessenger(m_instance);
     }
     selectPhysicalDevice();
+
+    m_window->setWindowTitle(std::string(m_gpu.properties.deviceName));
     createSurface();
     findQueueFamilyIndices();
     createLogicalDevice();
@@ -62,10 +65,8 @@ void vkContext::initVulkan()
     //LoadModelFromFile("../../scenes/myboxes/mybox.obj");
     //LoadModelFromFile("../../scenes/classroom/classroom.obj");
 
-    //LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon3.obj");
+    LoadModelFromFile("../../scenes/conferenceBall/conferenceBallDragon3.obj");
     //LoadModelFromFile("../../scenes/Balls/balls.obj");
-    LoadModelFromFile("../../scenes/Rusty/Cubert.glb");
-    //LoadModelFromFile("../../scenes/Rusty/rusty.glb");
     //LoadModelFromFile("../../scenes/breakfast_room/breakfast_room.obj");
     //LoadModelFromFile("../../scenes/gallery/gallery.obj");
     //LoadModelFromFile("../../scenes/suzanne.obj");
@@ -1024,15 +1025,21 @@ void vkContext::updateGraphicsUniforms()
     ubo.numAOrays   = m_settings.numAOrays;
     ubo.aoRayLength = m_settings.aoRayLength;
 
-    if(m_settings.RTX_ON == true && m_settings.iteration < m_settings.samplesPerPixel)
+    if(m_settings.RTX_ON)
     {
-        ubo.iteration = m_settings.iteration;
-        m_settings.iteration += m_settings.numAArays;
+        if(m_settings.rtRenderingMode == 0 && m_settings.iteration < m_settings.samplesPerPixel)
+        {
+            ubo.iteration = m_settings.iteration;
+            m_settings.iteration += m_settings.numAArays;
+        }
+        if(m_settings.rtRenderingMode == 1 && m_settings.iteration < m_settings.numAOrays)
+        {
+            m_settings.iteration += 1;
+        }
     }
-    //ubo.iteration   = m_cameraMoved ? 0 : uintDist(gen);
+
 
     ubo.time = m_runTime;
-
 
     if(m_cameraMoved)
     {
